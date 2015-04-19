@@ -11,18 +11,43 @@ return function(params) {
 
 //-------- private members
 
-var stops = params.stops;
+var stops;
 var resolution = params.resolution;
 var buffer = new Int32Array(resolution);
 
+var offset = params.offset;
+var modulo = params.modulo;
+var factor;			// factor for projection iteration -> color space
+
 //-------- private methds
 
-var copyStop = function(stop) {
+var buildStops = function(params) {
+	if (params.constructor === Array) {
+		stops = params;
+		return;
+	}
+	stops = [];
+	var tstops = params.split(";");
+	for (var i in tstops) {
+		var tstop = tstops[i];
+		var items = tstop.split("#");
+		var index = Number(items[0]);
+		var red = parseInt(items[1].substring(0,2),16);
+		var green = parseInt(items[1].substring(2,4),16);
+		var blue = parseInt(items[1].substring(4,6),16);
+		stops.push({
+			index:index,r:red,g:green,b:blue
+		});
+	}
+
+};
+
+var copyStop = function(stop, offset) {
 	return {
-		index:stop.index, 
-		h:stop.h,
-		s:stop.s,
-		v:stop.v
+		index:stop.index+(offset?offset:0), 
+		r:stop.r,
+		g:stop.g,
+		b:stop.b
 	};
 };
 
@@ -30,17 +55,19 @@ var buildBuffer = function() {
 	var i;
 	var byteBuffer = new Uint8Array(buffer.buffer); // create an 8-bit view on the buffer
 	
-	var fstops = [];
-	var copy = copyStop(stops[stops.length-1]);
-	copy.index-=1.0;
-	fstops.push(copy);
-	for (i in stops) 
-		fstops.push(stops[i]);
-	copy = copyStop(stops[0]);
-	copy.index+=1.0;
-	fstops.push(copy);
-	//console.log(fstops);
-	
+	//console.log(offset)
+	var gstops = [];
+	for (i in stops) {
+		var stop = copyStop(stops[i], offset);
+		stop.index = stop.index%1
+		gstops.push(stop);
+	}
+	gstops.sort(function(a,b){return a.index-b.index});
+	gstops.push(copyStop(gstops[0], +1));
+	gstops.splice(0, 0, copyStop(gstops[gstops.length-2], -1));
+	//console.log(gstops);
+	var fstops=gstops;
+
 	var stopAindex = 0;
 	var stopBindex = 1;
 	var stopA = fstops[stopAindex];
@@ -79,9 +106,16 @@ var buildBuffer = function() {
 	}
 };
 
+var project = function() {
+	factor = resolution/modulo
+	//console.log(factor, resolution, modulo)
+}
+
 //-------- constructor
 
+buildStops(params.stops);
 buildBuffer();
+project();
 
 //-------- public methods
 
@@ -89,10 +123,28 @@ return {
 
 getColorForIter: function(iter) {
 	if (iter===0)
+		// TODO paletize this color
 		return 0xFF000000;
-	var res = buffer[iter%resolution];
-	//console.log(iter, res)
+	//var res = buffer[iter%resolution];
+	//console.log(iter, factor, resolution, )
+	var res = buffer[Math.trunc(iter*factor%resolution)];
 	return res;
+},
+
+getState: function() {
+	return {buffer:buffer, stops:stops, offset:offset, modulo:modulo};
+},
+
+setState: function(state) {
+	if (state.offset)
+		offset = state.offset
+	if (state.modulo)
+		modulo = state.modulo
+	project()
+},
+
+build: function(state) {
+	buildBuffer();
 }
 
 };

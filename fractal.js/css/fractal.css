@@ -4,10 +4,21 @@ body {
 	color:#CCC;
 }
 
+.menuitem.hidden {
+	display:none;
+}
+
 #menusystem {
 	position:absolute;
 	box-sizing: border-box;
 	width:100%;
+}
+
+#palettecanvas {
+}
+#palettecanvascontainer {
+	width:100%;
+	border:5px solid black;
 }
 
 #menubar {
@@ -71,4 +82,14 @@ canvas {
 .pane button.selected {
 	color:#EEE;
 	background: rgba(255,255,255,0.15);	
+}
+
+.debug {
+	font-size:18px;
+	font-family:monospace;
+	-webkit-user-select: text;
+}
+.debug b {
+	color:#F88;
+	font-weight:normal;
 }

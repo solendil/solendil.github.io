@@ -15,7 +15,7 @@
 <div id="menubar">
   <span class="menuitem" menu-name="type">Type</span>
   <span class="menuitem" menu-name="color">Colors</span>
-  <span class="menuitem" menu-name="debug">Debug</span>
+  <span class="menuitem hidden" menu-name="debug">Debug</span>
   <span class="menuitem right"><b>?</b></span>
 </div>
 
@@ -26,11 +26,16 @@
 </div>
 
 <div class="pane hidden" menu-name="color">
-Oh it's full of colors!
+<!--<My God &mdash;&mdash; it's full of colors !-->
+
+<div id="palettecanvascontainer">
+<canvas id="palettecanvas"></canvas>
+</div>
 </div>
 
-<div class="pane hidden" menu-name="debug">
-<div class="debugtext"> </div>
+<div class="pane hidden debug" menu-name="debug">
+<div class="pos"> </div><br/>
+<div class="frame"> </div>
 </div>
 </div>
 
@@ -44,7 +49,8 @@ Oh it's full of colors!
         jquery: 'lib/jquery-2.1.3.min'
       }
     });
-    require(["fractal", "fractal.ui"], function(Fractal, FractalUi) {
+    require(["fractal", "fractal.ui", "fractal.debug"], 
+    function(Fractal, FractalUi, FractalDebug) {
       var f = new Fractal({
         canvas:document.getElementById("maincanvas"),
         fractalDesc:{
@@ -55,11 +61,13 @@ Oh it's full of colors!
           i:50
         },
         palette:{
-          resolution:100,
-          stops:[
+          resolution:500,
+          stops:"0#080560;0.2#2969CB;0.40#F1FEFE;0.60#FCA425;0.85#000000"
+/*
           {index:0.0,r:25, g:33, b:177},
           {index:0.5,r:0,b:255,g:255},
           ]
+*/
         },
         renderer:{
           numberOfTiles:100,
@@ -71,6 +79,7 @@ Oh it's full of colors!
       });
 
       var ui = new FractalUi(f);
+      var debug = new FractalDebug(f);
 
       f.draw();
     })

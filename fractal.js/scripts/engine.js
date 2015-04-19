@@ -92,9 +92,9 @@ setFractalDesc: function(desc) {
 	if (desc.w)
 		w = desc.w;
 	if (desc.i)
-		iter = desc.i;
+		iter = Math.round(desc.i);
 	if (desc.iter)
-		iter = desc.iter;
+		iter = Math.round(desc.iter);
 	if (desc.type) {
 		if (!(desc.type in fractalFunctionList))
 			throw "Invalid fractal function " + desc.type;
@@ -139,6 +139,10 @@ drawTile: function(tile) {
 		py += pixelOnP;
 	}	
 	return frame;	
+},
+
+getBuffer: function() {
+	return frame;
 },
 
 };
