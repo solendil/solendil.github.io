@@ -1,4 +1,4 @@
-define(["jquery"], function($) {
+define(["jquery", "util"], function($, util) {
 "use strict";
 
 /*
@@ -16,9 +16,14 @@ var dragX, dragY;		// start dragging point
 var dragStartDesc;		// start fractal desc
 var ldragX, ldragY;		// last dragging point
 
+var callbacks = {		// external callbacks
+	"mouse.control":[],
+};
+
 //-------- event catchers
 
 if (params.mouseControl) {
+
 	$(canvas).mousedown(function(e) {
 		isDragging = true;
 		dragX = ldragX = e.screenX;
@@ -40,8 +45,10 @@ if (params.mouseControl) {
 			renderer.setFractalDesc(c);
 
 	        var vfx = e.screenX - ldragX;
-	        var vfy = e.screenY - ldragY;           
-			renderer.draw({x:vfx,y:vfy,mvt:"pan"});
+	        var vfy = e.screenY - ldragY;  
+	        var vector = {x:vfx,y:vfy,mvt:"pan"}       
+			renderer.draw(vector);
+			util.callbackHelp(callbacks["mouse.control"], vector);
 
 	        ldragX = e.screenX;
 	        ldragY = e.screenY;
@@ -85,7 +92,9 @@ if (params.mouseControl) {
 	    vector.x = (startDesc.pxmin - endDesc.pxmin) / startDesc.pixelOnP;
 	    vector.y = (startDesc.pymin - endDesc.pymin) / startDesc.pixelOnP;
 		renderer.draw(vector);
+		util.callbackHelp(callbacks["mouse.control"], vector);
 	});
+
 }
 
 if (params.fitToWindow) {
@@ -107,6 +116,10 @@ if (params.fitToWindow) {
 //-------- public methods
 
 return {
+
+on: function(event, callback) {
+	callbacks[event].push(callback);
+}
 
 };
 

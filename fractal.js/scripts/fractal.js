@@ -14,7 +14,7 @@ function(Renderer, Controller, util) {
 {
     canvas : <DOM canvas node>		// mandatory canvas
     fractalDesc	: <JSON object>		// mandatory fractal description (see engine.js)
-    palette : {
+    palette : {						// the default palette object
 		stops : [
 			{index:0,r:0,g:0,b:0},
 			{index:0.5,r:255,g:255,b:255},
@@ -23,6 +23,7 @@ function(Renderer, Controller, util) {
     }
     renderer : {
 		numberOfTiles : 1,			// number of tiles to draw (approximate)
+		drawAfterInit : true,		// should the fractal be drawn after init
     },
 	controller : {
 		mouseControl : true,		// allow mouse navigation in canvas
@@ -55,6 +56,7 @@ if (!params.palette)
 
 params.renderer = util.defaultProps(params.renderer, {
 	numberOfTiles: 1,
+	drawAfterInit: true
 });
 
 params.controller = util.defaultProps(params.controller, {
@@ -66,7 +68,8 @@ renderer = new Renderer(params);
 
 controller = new Controller(renderer, params.canvas, params.controller);
 
-renderer.draw();
+if (params.renderer.drawAfterInit)
+	renderer.draw();
 
 //-------- private methods
 
@@ -91,6 +94,8 @@ draw: function() {
 on: function(event, callback) {
 	if (event=="frame.end" || event=="frame.start" )
 		renderer.on(event, callback);
+	else if (event=="mouse.control" )
+		controller.on(event, callback);
 	else
 		throw "Unknown event " + event;
 }

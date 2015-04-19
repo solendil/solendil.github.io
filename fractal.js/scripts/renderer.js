@@ -1,4 +1,4 @@
-define(["engine", "palette"], function(Engine, Palette) {
+define(["engine", "palette", "util"], function(Engine, Palette, util) {
 "use strict";
 
 /*
@@ -40,17 +40,15 @@ palette = new Palette(params.palette);
 //-------- private methods
 
 var callbackNewFrame = function() {
-	var res = {};
-	res.fractalDesc = engine.getFractalDesc();
-	for (var cb in callbacks["frame.start"]) 
-		callbacks["frame.start"][cb](res);
+	util.callbackHelp(callbacks["frame.start"], function() {
+		return {fractalDesc:engine.getFractalDesc()};
+	})
 };
 
 var callbackEndFrame = function() {
-	var res = {};
-	res.fractalDesc = engine.getFractalDesc();
-	for (var cb in callbacks["frame.end"]) 
-		callbacks["frame.end"][cb](res);
+	util.callbackHelp(callbacks["frame.end"], function() {
+		return {fractalDesc:engine.getFractalDesc()};
+	})
 };
 
 var callbackInterruptFrame = function() {

@@ -54,6 +54,19 @@ defaultProps: function(dest, def) {
 	return dest;
 },
 
+// call all functions in the cblist with _param
+// _param is computed if it's a function and only if there are callbacks to do
+callbackHelp: function(cblist, _param) {
+	if(cblist.length>0) {
+		var param = _param
+		if (typeof(_param) === "function") 
+			param = _param()
+		for(var cb in cblist) {
+			cblist[cb](param);
+		}
+	}
+}
+
 };
 
 });

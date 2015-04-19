@@ -36,6 +36,8 @@ var typeList = {
 
 //-------- jquery callbacks
 
+// PANELS
+
 $(".menuitem").click(function(e) {
 	var selected = $(this).hasClass("selected");
 	$(".menuitem").removeClass("selected");
@@ -50,8 +52,11 @@ $(".menuitem").click(function(e) {
 	}
 });
 
+// FRACTAL TYPE buttons 
+
 var desc = f.getFractalDesc();
 $(".changetype[type-name='"+desc.type+"']").addClass("selected");
+
 $(".changetype").click(function(e) {
 	var type = $(this).attr("type-name");
 	f.setFractalDesc(typeList[type]);
@@ -59,6 +64,16 @@ $(".changetype").click(function(e) {
 	$(".changetype").removeClass("selected");
 	$(".changetype[type-name='"+type+"']").addClass("selected");
 });
+
+f.on("mouse.control", function(e) {
+	// make the fractal type menu disappear on mouse control
+	if ($(".menuitem[menu-name='type']").hasClass("selected")) {
+		$(".menuitem").removeClass("selected");
+		$(".pane").addClass("hidden");
+	}
+});
+
+// DEBUG text
 
 f.on("frame.start", function(e) {
 	var text = 
