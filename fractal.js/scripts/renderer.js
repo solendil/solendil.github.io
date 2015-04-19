@@ -24,6 +24,8 @@ var callbacks = {		// external callbacks
 	"frame.start":[]
 };
 
+var public_methods;
+
 //-------- constructor
 
 canvas = params.canvas;
@@ -42,16 +44,70 @@ palette = new Palette(params.palette);
 var callbackNewFrame = function() {
 	util.callbackHelp(callbacks["frame.start"], function() {
 		return {fractalDesc:engine.getFractalDesc()};
-	})
+	});
 };
 
 var callbackEndFrame = function() {
 	util.callbackHelp(callbacks["frame.end"], function() {
-		return {fractalDesc:engine.getFractalDesc()};
-	})
+		return {
+			fractalDesc : engine.getFractalDesc(),
+			buffer : engine.getBuffer(),
+		};
+	});
+	// frame is finished; analyze buffer to auto-adjust iteration count
+	// algorithm:
+	// - we compute the percentage of pixels in the set/pixels on the screen
+	// - the fringe is the band of pixels whose iteration is in the 10% upper
+	// - we compute the percentage of pixels in the fringe/pixels in the set
+	// - if set is big enough (>1%) and fringe is big vs set (>1%) increase iterations
+	// - if set is big enough (>1%) and fringe is small vs set (<0.2%) decrease iterations
+	var i, iter;
+	var buffer = engine.getBuffer();
+	var fractalDesc = engine.getFractalDesc();
+	var minIter = 1e12, maxIter = -1;
+	var nb = 0, nbInSet = 0;
+	for (i=0; i<buffer.length; i++) {
+		nb++;
+		iter = buffer[i];
+		if (iter===0) {
+			nbInSet++;
+			continue;
+		}
+		if (iter>maxIter) maxIter=iter;
+		if (iter<minIter) minIter=iter;
+	}
+	var iterRange = maxIter-minIter;
+	var fringe10p = fractalDesc.iter - Math.ceil(iterRange/10);
+	var nbFringe10p = 0;
+	for (i=0; i<buffer.length; i++) {
+		iter = buffer[i];
+		if (iter===0) 
+			continue;
+		if (iter>=fringe10p) 
+			nbFringe10p++;
+	}	
+	var percInSet = 100.0*nbInSet/nb;
+ 	var percFringe10p = 100.0*nbFringe10p/nbInSet;
+	if (percInSet > 1 && percFringe10p>1) {
+		engine.setFractalDesc({iter:fractalDesc.iter*1.5});
+		public_methods.draw();
+	}
+	if (percInSet > 1 && percFringe10p<0.2) {
+		engine.setFractalDesc({iter:fractalDesc.iter/1.5});
+		// public_methods.draw();
+	}
 };
 
 var callbackInterruptFrame = function() {
+};
+
+// TODO : insert this in the drawing queue ?
+var drawPalette = function() {
+	var iterbuffer = engine.getBuffer();
+	var limit = canvas.height*canvas.width;
+	for (var i=0; i<limit; i++) 
+		idata32[i] = palette.getColorForIter(iterbuffer[i])
+	context.putImageData(imageData, 0, 0, 0, 0, canvas.width, canvas.height);
 };
 
 var drawItem = function() {
@@ -63,7 +119,6 @@ var drawItem = function() {
 		for (var sx=tile.x1; sx<tile.x2; sx++) {
 			var iter = iterbuffer[dx];
 			var color = palette.getColorForIter(iter);
-			//if (iter!=2) console.log(sy, sx, iter, color)
 			idata32[dx++] = color;
 		}
 	}
@@ -81,7 +136,11 @@ var drawItem = function() {
 
 //-------- public methods
 
-return {
+public_methods = {
+
+drawPalette: function() {
+	drawPalette();
+},
 
 draw: function(vector) {
 	// if a frame is being drawn, cancel next callback, empty draw list
@@ -187,11 +246,17 @@ getFractalDesc: function () {
 	return engine.getFractalDesc();
 },
 
+getPalette: function () {
+	return palette;
+},
+
 on: function(event, callback) {
 	callbacks[event].push(callback);
 }
 
 };
+
+return public_methods;
 
 };
 });

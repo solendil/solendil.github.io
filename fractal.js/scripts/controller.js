@@ -46,7 +46,7 @@ if (params.mouseControl) {
 
 	        var vfx = e.screenX - ldragX;
 	        var vfy = e.screenY - ldragY;  
-	        var vector = {x:vfx,y:vfy,mvt:"pan"}       
+	        var vector = {x:vfx,y:vfy,mvt:"pan"};     
 			renderer.draw(vector);
 			util.callbackHelp(callbacks["mouse.control"], vector);
 

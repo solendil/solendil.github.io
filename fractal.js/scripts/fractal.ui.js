@@ -1,11 +1,11 @@
-define(["jquery"], 
-function($) {
+define(["jquery", "palette.ui"], 
+function($, PaletteUi) {
 "use strict";
 
 /*
  * The fractal UI:
  */
-return function(f) {
+return function(fractal) {
 
 //-------- private members
 
@@ -34,6 +34,11 @@ var typeList = {
 	}
 };
 
+var paletteui = new PaletteUi(
+	fractal, 
+	fractal.getPalette(), 
+	document.getElementById("palettecanvas"));
+
 //-------- jquery callbacks
 
 // PANELS
@@ -49,23 +54,25 @@ $(".menuitem").click(function(e) {
 		$(this).addClass("selected");
 		var pane = $(".pane[menu-name='"+menuName+"']");
 		pane.removeClass("hidden");
+		if (menuName=="color")
+			paletteui.resize()
 	}
 });
 
 // FRACTAL TYPE buttons 
 
-var desc = f.getFractalDesc();
+var desc = fractal.getFractalDesc();
 $(".changetype[type-name='"+desc.type+"']").addClass("selected");
 
 $(".changetype").click(function(e) {
 	var type = $(this).attr("type-name");
-	f.setFractalDesc(typeList[type]);
-	f.draw();
+	fractal.setFractalDesc(typeList[type]);
+	fractal.draw();
 	$(".changetype").removeClass("selected");
 	$(".changetype[type-name='"+type+"']").addClass("selected");
 });
 
-f.on("mouse.control", function(e) {
+fractal.on("mouse.control", function(e) {
 	// make the fractal type menu disappear on mouse control
 	if ($(".menuitem[menu-name='type']").hasClass("selected")) {
 		$(".menuitem").removeClass("selected");
@@ -73,15 +80,6 @@ f.on("mouse.control", function(e) {
 	}
 });
 
-// DEBUG text
-
-f.on("frame.start", function(e) {
-	var text = 
-		"x:"+e.fractalDesc.x+"<br />"+
-		"y:"+e.fractalDesc.y+"<br />"+
-		"w:"+e.fractalDesc.w+"<br />";
-	$(".debugtext").html(text);
-});
 
 //-------- private methods
 

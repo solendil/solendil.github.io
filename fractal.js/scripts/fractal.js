@@ -19,7 +19,9 @@ function(Renderer, Controller, util) {
 			{index:0,r:0,g:0,b:0},
 			{index:0.5,r:255,g:255,b:255},
 		],
-		resolution : 100
+		resolution : 100,
+		offset : 0,
+		modulo : 0
     }
     renderer : {
 		numberOfTiles : 1,			// number of tiles to draw (approximate)
@@ -51,8 +53,14 @@ if (!params.palette)
 			{index:0,r:0,g:0,b:0},
 			{index:0.5,r:255,g:255,b:255},
 		],
-		resolution : 100
     };
+
+params.palette = util.defaultProps(params.palette, {
+	stops: [],
+	resolution: 1000,
+	offset: 0,
+	modulo: 50,
+});
 
 params.renderer = util.defaultProps(params.renderer, {
 	numberOfTiles: 1,
@@ -87,8 +95,16 @@ getFractalDesc: function () {
 	return renderer.getFractalDesc();
 },
 
+getPalette: function () {
+	return renderer.getPalette();
+},
+
 draw: function() {
 	renderer.draw();
+},
+
+drawPalette: function() {
+	renderer.drawPalette();
 },
 
 on: function(event, callback) {
