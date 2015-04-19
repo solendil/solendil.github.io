@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fractal.js</title>
+    <link rel="stylesheet" href="css/normalize.css" />
+    <link rel="stylesheet" href="css/fractal.css" >
+    <link href='http://fonts.googleapis.com/css?family=Michroma' rel='stylesheet' type='text/css'>
+  </head>
+  <body>
+
+<div id="menusystem">
+<div id="menubar">
+  <span class="menuitem" menu-name="type">Type</span>
+  <span class="menuitem" menu-name="color">Colors</span>
+  <span class="menuitem" menu-name="debug">Debug</span>
+  <span class="menuitem right"><b>?</b></span>
+</div>
+
+<div class="pane hidden" menu-name="type">
+  <button class="changetype" type-name="mandel">Mandelbrot</button><!--
+  --><button class="changetype" type-name="mandel3">Mandelbrot<sup>3</sup></button><!--
+  --><button class="changetype" type-name="burningship">Burning Ship</button>
+</div>
+
+<div class="pane hidden" menu-name="color">
+Oh it's full of colors!
+</div>
+
+<div class="pane hidden" menu-name="debug">
+<div class="debugtext"> </div>
+</div>
+</div>
+
+<canvas id="maincanvas"></canvas>
+
+<script src="scripts/lib/require.js"></script>
+<script>
+    require.config({
+      baseUrl:"scripts",
+      paths: {
+        jquery: 'lib/jquery-2.1.3.min'
+      }
+    });
+    require(["fractal", "fractal.ui"], function(Fractal, FractalUi) {
+      var f = new Fractal({
+        canvas:document.getElementById("maincanvas"),
+        fractalDesc:{
+          type:'mandel',
+          x:-0.7, 
+          y:0.0, 
+          w:2.5, 
+          i:50
+        },
+        palette:{
+          resolution:100,
+          stops:[
+          {index:0.0,r:25, g:33, b:177},
+          {index:0.5,r:0,b:255,g:255},
+          ]
+        },
+        renderer:{
+          numberOfTiles:100
+        },
+        controller:{
+          fitToWindow:true
+        }
+      });
+
+      var ui = new FractalUi(f);
+    })
+</script>
+
+  </body>
+</html>
