@@ -39,9 +39,31 @@ var project = function() {
 	pymin = y - sheight/2 * pixelOnP;
 };
 
+var logBase = 1.0 / Math.log(2.0);
+var logHalfBase = Math.log(0.5)*logBase;
+
 var fractalFunctionList = {
+	'mandelsmooth' : function(cx,cy) {
+		var znx=0, zny=0, sqx=0, sqy=0, i=0, j=0;
+		for(;i<iter && sqx+sqy<=escape; ++i) {
+			zny = (znx+znx)*zny + cy;
+			znx = sqx-sqy + cx;
+			sqx = znx*znx;
+			sqy = zny*zny;
+		}
+		for(var j=0;j<4; ++j) {
+			zny = (znx+znx)*zny + cy;
+			znx = sqx-sqy + cx;
+			sqx = znx*znx;
+			sqy = zny*zny;
+		}
+
+		var res = 5 + i - logHalfBase - Math.log(Math.log(sqx+sqy))*logBase;
+		return res;
+		//return i;	
+	},	
 	'mandel' : function(cx,cy) {
-		var znx=0, zny=0, sqx=0, sqy=0, i=0;
+		var znx=0, zny=0, sqx=0, sqy=0, i=0, j=0;
 		for(;i<iter && sqx+sqy<=escape; ++i) {
 			zny = (znx+znx)*zny + cy;
 			znx = sqx-sqy + cx;
@@ -79,6 +101,7 @@ var fractalFunctionList = {
 		return i;
 	}
 };
+fractalFunction = fractalFunctionList['mandel']; //default
 
 //-------- public methods
 
@@ -104,7 +127,7 @@ setFractalDesc: function(desc) {
 	if (desc.swidth) {
 		swidth = desc.swidth;
 		sheight = desc.sheight;
-		frame = new Int16Array(swidth*sheight);
+		frame = new Float32Array(swidth*sheight);
 	}
 	project();
 	var res = this.getFractalDesc();

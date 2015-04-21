@@ -18,6 +18,13 @@ var typeList = {
 		w:2.5, 
 		i:50
 	},
+	"mandelsmooth" : {
+		type:'mandelsmooth',
+		x:-0.7, 
+		y:0.0, 
+		w:2.5, 
+		i:50
+	},
 	"mandel3" : {
 		type:'mandel3',
 		x:0.0, 
@@ -39,7 +46,52 @@ var paletteui = new PaletteUi(
 	fractal.getPalette(), 
 	document.getElementById("palettecanvas"));
 
-//-------- jquery callbacks
+//-------- private methods
+
+var updateUrl = function() {
+	var json = {fractalDesc:{},palette:{}}
+	var desc = fractal.getFractalDesc();
+	json.fractalDesc={
+		type:desc.type,
+		x:desc.x,
+		y:desc.y,
+		w:desc.w,
+		iter:desc.iter
+	}	
+	var pal = fractal.getPalette().getShortDesc()
+	json.palette={
+		offset:pal.offset,
+		modulo:pal.modulo,
+		stops:pal.stops
+	}
+	var string = JSON.stringify(json);
+	//console.log(string.length, string);
+	var encoded = encodeURIComponent(string);
+	//console.log(encoded.length, encoded);
+	document.location.hash="/desc.v1/"+encoded
+}
+
+var readUrl = function() {
+	var url = document.location.hash;
+	console.log(url)
+	if (url.startsWith("#/desc.v1/")) {
+		var encoded = url.substring("#/desc.v1/".length);
+		var decoded = decodeURIComponent(encoded);
+		var obj = JSON.parse(decoded);
+		fractal.setFractalDesc(obj.fractalDesc);
+		fractal.getPalette().setShortDesc(obj.palette);
+		
+		console.log(encoded)
+		console.log(decoded)
+		console.log("---",obj)
+		
+	}
+}
+
+//-------- constructor & jquery callbacks
+
+// is there's a readable hash URL, load it
+readUrl();
 
 // PANELS
 
@@ -72,16 +124,20 @@ $(".changetype").click(function(e) {
 	$(".changetype[type-name='"+type+"']").addClass("selected");
 });
 
+fractal.on("palette.change", function(e) {
+	updateUrl();
+})
+
 fractal.on("mouse.control", function(e) {
 	// make the fractal type menu disappear on mouse control
 	if ($(".menuitem[menu-name='type']").hasClass("selected")) {
 		$(".menuitem").removeClass("selected");
 		$(".pane").addClass("hidden");
 	}
+	// update the URL
+	updateUrl();
 });
 
-
-//-------- private methods
 
 //-------- public methods
 

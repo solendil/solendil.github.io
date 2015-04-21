@@ -1,6 +1,27 @@
 define([], function() {
 "use strict";
 
+//-------- initialization code 
+
+if (typeof String.prototype.startsWith != 'function') {
+  // see below for better implementation!
+  String.prototype.startsWith = function (str){
+    return this.indexOf(str) === 0;
+  };
+}
+
+//-------- private functions
+
+var toHex2 = function(number) {
+	if (number<0 || number>255) 
+		throw "Number is out of range";
+	if (number<16)
+		return "0" + number.toString(16);
+	return number.toString(16);
+}
+
+//-------- public functions
+
 return {
 
 /*
@@ -65,6 +86,10 @@ callbackHelp: function(cblist, _param) {
 			cblist[cb](param);
 		}
 	}
+},
+
+getHashColor: function(r, g, b) {
+		return "#" + toHex2(r) + toHex2(g) + toHex2(b);
 }
 
 };

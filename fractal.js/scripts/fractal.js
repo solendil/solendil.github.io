@@ -112,6 +112,8 @@ on: function(event, callback) {
 		renderer.on(event, callback);
 	else if (event=="mouse.control" )
 		controller.on(event, callback);
+	else if (event=="palette.change" )
+		renderer.getPalette().on(event, callback);
 	else
 		throw "Unknown event " + event;
 }

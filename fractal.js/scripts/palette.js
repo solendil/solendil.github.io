@@ -19,6 +19,10 @@ var offset = params.offset;
 var modulo = params.modulo;
 var factor;			// factor for projection iteration -> color space
 
+var callbacks = {		// external callbacks
+	"palette.change":[],
+};
+
 //-------- private methds
 
 var buildStops = function(params) {
@@ -131,21 +135,49 @@ getColorForIter: function(iter) {
 	return res;
 },
 
+// what a mess...
 getState: function() {
 	return {buffer:buffer, stops:stops, offset:offset, modulo:modulo};
 },
 
+setShortDesc: function(state) {
+	if (state.offset)
+		offset = state.offset;
+	if (state.modulo)
+		modulo = state.modulo;
+	buildStops(state.stops);
+	buildBuffer();
+	project();
+},
+
+getShortDesc: function() {
+	var short="";
+	for (var i in stops) {
+		var stop = stops[i];
+		short += stop.index;
+		short += util.getHashColor(stop.r, stop.g, stop.b);
+		short += ";";
+	}
+	return {modulo:modulo, offset:offset, stops:short.slice(0,-1)};
+},
+
 setState: function(state) {
 	if (state.offset)
-		offset = state.offset
+		offset = state.offset;
 	if (state.modulo)
-		modulo = state.modulo
-	project()
+		modulo = state.modulo;
+	util.callbackHelp(callbacks["palette.change"]);
+	project();
 },
 
 build: function(state) {
 	buildBuffer();
+},
+
+on: function(event, callback) {
+	callbacks[event].push(callback);
 }
+
 
 };
 

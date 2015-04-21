@@ -67,12 +67,14 @@ f.on("frame.end", function(e) {
 	var percFringe10pS = Number(100.0*nbFringe10p/nbInSet).toFixed(2);
 	var percFringe10wpS = Number(100.0*nbFringe10wp/nbInSet).toFixed(2);
 
+	var mpixps = Number(e.buffer.length / (e.time/1000) / 1000000).toFixed(3);
 
 	var text =
 		"Iterations : "+minIter+" to "+maxIter+" - range "+iterRange+" - maxIter "+e.fractalDesc.iter+"<br>"+
 		"Fringe 10% &nbsp;: limit "+fringe10p +" nb "+nbFringe10p +" (<b>"+percFringe10p+"%</b> of screen, <b>"+percFringe10pS+"%</b> of set)<br>"+
 		"Fringe 10W% : limit "     +fringe10wp+" nb "+nbFringe10wp+" (<b>"+percFringe10wp+"%</b> of screen, <b>"+percFringe10wpS+"%</b> of set)<br>"+
-		"Pixels "+nb+", in set "+nbInSet+" -- <b>"+percInSet+"%</b><br>";
+		"Pixels "+nb+", in set "+nbInSet+" -- <b>"+percInSet+"%</b><br>"+
+		"Time "+Math.round(e.time)+"ms, "+mpixps+" Mpixel/s<br/>";
 	$(".debug .frame").html(text);	
 });
 

@@ -25,6 +25,7 @@ var callbacks = {		// external callbacks
 };
 
 var public_methods;
+var startFrameMs;
 
 //-------- constructor
 
@@ -42,16 +43,19 @@ palette = new Palette(params.palette);
 //-------- private methods
 
 var callbackNewFrame = function() {
+	startFrameMs = performance.now();
 	util.callbackHelp(callbacks["frame.start"], function() {
 		return {fractalDesc:engine.getFractalDesc()};
 	});
 };
 
 var callbackEndFrame = function() {
+	var endFrameMs = performance.now();
 	util.callbackHelp(callbacks["frame.end"], function() {
 		return {
 			fractalDesc : engine.getFractalDesc(),
 			buffer : engine.getBuffer(),
+			time: endFrameMs-startFrameMs,
 		};
 	});
 	// frame is finished; analyze buffer to auto-adjust iteration count
