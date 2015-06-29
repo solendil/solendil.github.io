@@ -49,7 +49,7 @@ var paletteui = new PaletteUi(
 //-------- private methods
 
 var updateUrl = function() {
-	var json = {fractalDesc:{},palette:{}}
+	var json = {fractalDesc:{},palette:{}};
 	var desc = fractal.getFractalDesc();
 	json.fractalDesc={
 		type:desc.type,
@@ -57,23 +57,23 @@ var updateUrl = function() {
 		y:desc.y,
 		w:desc.w,
 		iter:desc.iter
-	}	
-	var pal = fractal.getPalette().getShortDesc()
+	};
+	var pal = fractal.getPalette().getShortDesc();
 	json.palette={
 		offset:pal.offset,
 		modulo:pal.modulo,
 		stops:pal.stops
-	}
+	};
 	var string = JSON.stringify(json);
 	//console.log(string.length, string);
 	var encoded = encodeURIComponent(string);
 	//console.log(encoded.length, encoded);
-	document.location.hash="/desc.v1/"+encoded
-}
+	document.location.hash="/desc.v1/"+encoded;
+};
 
 var readUrl = function() {
 	var url = document.location.hash;
-	console.log(url)
+	console.log(url);
 	if (url.startsWith("#/desc.v1/")) {
 		var encoded = url.substring("#/desc.v1/".length);
 		var decoded = decodeURIComponent(encoded);
@@ -81,12 +81,12 @@ var readUrl = function() {
 		fractal.setFractalDesc(obj.fractalDesc);
 		fractal.getPalette().setShortDesc(obj.palette);
 		
-		console.log(encoded)
-		console.log(decoded)
-		console.log("---",obj)
+		console.log(encoded);
+		console.log(decoded);
+		console.log("---",obj);
 		
 	}
-}
+};
 
 //-------- constructor & jquery callbacks
 
@@ -107,7 +107,7 @@ $(".menuitem").click(function(e) {
 		var pane = $(".pane[menu-name='"+menuName+"']");
 		pane.removeClass("hidden");
 		if (menuName=="color")
-			paletteui.resize()
+			paletteui.resize();
 	}
 });
 
@@ -126,7 +126,7 @@ $(".changetype").click(function(e) {
 
 fractal.on("palette.change", function(e) {
 	updateUrl();
-})
+});
 
 fractal.on("mouse.control", function(e) {
 	// make the fractal type menu disappear on mouse control

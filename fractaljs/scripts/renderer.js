@@ -110,7 +110,7 @@ var drawPalette = function() {
 	var iterbuffer = engine.getBuffer();
 	var limit = canvas.height*canvas.width;
 	for (var i=0; i<limit; i++) 
-		idata32[i] = palette.getColorForIter(iterbuffer[i])
+		idata32[i] = palette.getColorForIter(iterbuffer[i]);
 	context.putImageData(imageData, 0, 0, 0, 0, canvas.width, canvas.height);
 };
 

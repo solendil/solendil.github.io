@@ -18,7 +18,7 @@ var toHex2 = function(number) {
 	if (number<16)
 		return "0" + number.toString(16);
 	return number.toString(16);
-}
+};
 
 //-------- public functions
 

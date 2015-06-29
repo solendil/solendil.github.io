@@ -51,7 +51,7 @@ var fractalFunctionList = {
 			sqx = znx*znx;
 			sqy = zny*zny;
 		}
-		for(var j=0;j<4; ++j) {
+		for(j=0;j<4; ++j) {
 			zny = (znx+znx)*zny + cy;
 			znx = sqx-sqy + cx;
 			sqx = znx*znx;
@@ -101,7 +101,7 @@ var fractalFunctionList = {
 		return i;
 	}
 };
-fractalFunction = fractalFunctionList['mandel']; //default
+fractalFunction = fractalFunctionList.mandel; //default
 
 //-------- public methods
 

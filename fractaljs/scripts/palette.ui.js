@@ -5,7 +5,7 @@ return function(fractal, palette, canvas) {
 
 //-------- private members
 
-var parentNode = canvas.parentNode
+var parentNode = canvas.parentNode;
 var loopExtent = 0.2;  // extent of palette looping on left and right for representation
 var isDragging;
 var dragX, dragY;
@@ -91,9 +91,9 @@ var resize = function() {
 	canvas.width = $(parentNode).width();
 	//console.log("size palette", canvas.width)
 	canvas.height = 50;
-	if (canvas.width!=0)
+	if (canvas.width!==0)
 		draw();
-}
+};
 
 //-------- constructor
 
@@ -108,8 +108,8 @@ $(canvas).mousedown(function(e) {
 	isDragging = true;
 	dragX = e.screenX;
 	dragY = e.screenY;
-	startOffset = palette.getState().offset
-	startModulo = palette.getState().modulo
+	startOffset = palette.getState().offset;
+	startModulo = palette.getState().modulo;
 });
 
 // DRAG MECHANISM

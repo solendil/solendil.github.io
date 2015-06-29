@@ -63,10 +63,10 @@ var buildBuffer = function() {
 	var gstops = [];
 	for (i in stops) {
 		var stop = copyStop(stops[i], offset);
-		stop.index = stop.index%1
+		stop.index = stop.index%1;
 		gstops.push(stop);
 	}
-	gstops.sort(function(a,b){return a.index-b.index});
+	gstops.sort(function(a,b){return a.index-b.index;});
 	gstops.push(copyStop(gstops[0], +1));
 	gstops.splice(0, 0, copyStop(gstops[gstops.length-2], -1));
 	//console.log(gstops);
@@ -111,9 +111,9 @@ var buildBuffer = function() {
 };
 
 var project = function() {
-	factor = resolution/modulo
+	factor = resolution/modulo;
 	//console.log(factor, resolution, modulo)
-}
+};
 
 //-------- constructor
 

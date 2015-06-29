@@ -6,41 +6,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Fractal.js</title>
     <link rel="stylesheet" href="css/normalize.css" />
-    <link rel="stylesheet" href="css/fractal.css" >
-    <link href='http://fonts.googleapis.com/css?family=Michroma' rel='stylesheet' type='text/css'>
+    <style>
+      body {
+        -webkit-user-select: none;
+        font-family:  Verdana, sans-serif;
+      }
+      canvas {
+        display:block;
+      }
+      #infobox {
+        font-size:14px;
+        color:#DDD;
+        position:absolute;
+        box-sizing: border-box;
+        bottom:1em; right:1em;
+        padding:0.5em;
+        background: rgba(0,0,0,0.5);
+        border-radius:10px;
+        text-align:right;
+      }
+      a {
+        color:#AAA;
+        text-decoration:none;
+      }     
+      a:hover {
+        color:#FFF;
+        text-decoration:underline;
+      }
+    </style>
   </head>
   <body>
 
-<div id="menusystem">
-<div id="menubar">
-  <span class="menuitem" menu-name="type">Type</span>
-  <span class="menuitem" menu-name="color">Colors</span>
-  <span class="menuitem hidden" menu-name="debug">Debug</span>
-  <span class="menuitem right"><b>?</b></span>
-</div>
-
-<div class="pane hidden" menu-name="type">
-  <button class="changetype" type-name="mandel">Mandelbrot</button><!--
-  --><button class="changetype" type-name="mandel3">Mandelbrot<sup>3</sup></button><!--
-  --><button class="changetype" type-name="burningship">Burning Ship</button><!--
-  --><button class="changetype" type-name="mandelsmooth">Mandel Smooth (&beta;)</button>
-</div>
-
-<div class="pane hidden" menu-name="color">
-<!--<My God &mdash;&mdash; it's full of colors !-->
-
-<div id="palettecanvascontainer">
-<canvas id="palettecanvas"></canvas>
-</div>
-</div>
-
-<div class="pane hidden debug" menu-name="debug">
-<div class="pos"> </div><br/>
-<div class="frame"> </div>
-</div>
-</div>
-
 <canvas id="maincanvas"></canvas>
+<div id="infobox">
+  Fractal<i>JS</i> - <a href="https://github.com/solendil/FractalJS">code on Github</a>
+</div>
 
 <script src="scripts/lib/require.js"></script>
 <script>
@@ -64,11 +64,6 @@
         palette:{
           resolution:500,
           stops:"0#080560;0.2#2969CB;0.40#F1FEFE;0.60#FCA425;0.85#000000"
-/*
-          {index:0.0,r:25, g:33, b:177},
-          {index:0.5,r:0,b:255,g:255},
-          ]
-*/
         },
         renderer:{
           numberOfTiles:100,
@@ -79,8 +74,8 @@
         }
       });
 
-      var ui = new FractalUi(f);
-      var debug = new FractalDebug(f);
+      //var ui = new FractalUi(f);
+      //var debug = new FractalDebug(f);
 
       f.draw();
     })
