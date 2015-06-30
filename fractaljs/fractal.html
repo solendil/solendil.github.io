@@ -4,52 +4,43 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FractalJS</title>
-    <!-- <link rel="stylesheet" href="css/normalize.css" /> -->
-    <style>
-      body {
-        -webkit-user-select: none;
-        font-family:  Verdana, sans-serif;
-        margin: 0;
-      }
-      canvas {
-        display:block;
-      }
-      #infobox {
-        font-size:14px;
-        color:#AAA;
-        position:absolute;
-        box-sizing: border-box;
-        bottom:1em; right:1em;
-        padding:0.5em;
-        background: rgba(0,0,0,0.5);
-        border-radius:10px;
-      }
-      a {
-        color:#AAA;
-        text-decoration:none;
-      }     
-      a:hover {
-        color:#FFF;
-        text-decoration:underline;
-      }
-      em {
-        font-size:120%;
-        color:#DDD;
-        font-style:normal;
-      }
-    </style>
+    <title>Fractal.js</title>
+    <link rel="stylesheet" href="css/normalize.css" />
+    <link rel="stylesheet" href="css/fractal.css" >
+    <link href='http://fonts.googleapis.com/css?family=Michroma' rel='stylesheet' type='text/css'>
   </head>
   <body>
 
-<canvas id="maincanvas"></canvas>
-<div id="infobox">
-  <em>FractalJS</em><br>
-  mousewheel &amp; drag<br>
-  bookmark &amp; share<br>
-  <a href=".">reset</a> - 
-  <a href="https://github.com/solendil/FractalJS">github</a>
+<div id="menusystem">
+<div id="menubar">
+  <span class="menuitem" menu-name="type">Type</span>
+  <span class="menuitem" menu-name="color">Colors</span>
+  <span class="menuitem hidden" menu-name="debug">Debug</span>
+  <span class="menuitem right"><b>?</b></span>
 </div>
+
+<div class="pane hidden" menu-name="type">
+  <button class="changetype" type-name="mandel">Mandelbrot</button><!--
+  --><button class="changetype" type-name="mandel3">Mandelbrot<sup>3</sup></button><!--
+  --><button class="changetype" type-name="burningship">Burning Ship</button><!--
+  --><button class="changetype" type-name="mandelsmooth">Mandel Smooth (&beta;)</button>
+</div>
+
+<div class="pane hidden" menu-name="color">
+<!--<My God &mdash;&mdash; it's full of colors !-->
+
+<div id="palettecanvascontainer">
+<canvas id="palettecanvas"></canvas>
+</div>
+</div>
+
+<div class="pane hidden debug" menu-name="debug">
+<div class="pos"> </div><br/>
+<div class="frame"> </div>
+</div>
+</div>
+
+<canvas id="maincanvas"></canvas>
 
 <script src="scripts/lib/require.js"></script>
 <script>
@@ -59,8 +50,8 @@
         jquery: 'lib/jquery-2.1.3.min'
       }
     });
-    require(["fractal", "fractal-ui"], 
-    function(Fractal, FractalUI) {
+    require(["fractal", "fractal.ui", "fractal.debug"], 
+    function(Fractal, FractalUi, FractalDebug) {
       var f = new Fractal({
         canvas:document.getElementById("maincanvas"),
         fractalDesc:{
@@ -73,6 +64,11 @@
         palette:{
           resolution:500,
           stops:"0#080560;0.2#2969CB;0.40#F1FEFE;0.60#FCA425;0.85#000000"
+/*
+          {index:0.0,r:25, g:33, b:177},
+          {index:0.5,r:0,b:255,g:255},
+          ]
+*/
         },
         renderer:{
           numberOfTiles:100,
@@ -83,7 +79,9 @@
         }
       });
 
-      var ui = new FractalUI(f);
+      var ui = new FractalUi(f);
+      var debug = new FractalDebug(f);
+
       f.draw();
     })
 </script>
