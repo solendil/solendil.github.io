@@ -1,21 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- 
+    USAGE : <iframe onmousewheel="" src="fractaljs.iframe.html#AAQA*AgAAAABAP+Wpp3O7vyrLehP8xO6*9V3GYVaAQj8_"></iframe>
+    The onmousewheel="" is required by Safari so the mouse wheel events work in the iFrame
+    -->
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>FractalJS</title>
-    <!-- @if NODE_ENV == 'DEVELOPMENT' -->
-    <script src="scripts/util.js"></script>
-    <script src="scripts/engine.js"></script>
-    <script src="scripts/palette.js"></script>
-    <script src="scripts/renderer.js"></script>
-    <script src="scripts/controller.js"></script>
-    <script src="scripts/fractal.js"></script>
-    <!-- @endif -->
-    <!-- @if NODE_ENV == 'PRODUCTION' -->
     <script src="scripts/fractal.min.js"></script>
-    <!-- @endif -->
-    <script src="scripts/fractal-ui.js"></script>
     <style>
       body {
         -webkit-user-select: none;
@@ -88,10 +81,8 @@ var f = FractalJS.create ({
       fitToWindow:true
     }
 });
-var ui = new FractalJS.FractalUI(f);
 f.draw();
 var openFull = function() {
-  console.log("openfull", window.location.hash)
   window.open("index.html"+window.location.hash, "_parent");
 }
 </script>
@@ -108,12 +99,6 @@ var openFull = function() {
 </div>
 
 <script type="text/javascript">
-// enable mousewheel in iframe for Safari
-// https://bugs.webkit.org/show_bug.cgi?id=124139
-var f = function() {};
-document.addEventListener("mousewheel", f);
-document.removeEventListener("mousewheel", f);
-
 // google code
 if (document.location.hostname.search("solendil.github.io") !== -1) {
   (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
