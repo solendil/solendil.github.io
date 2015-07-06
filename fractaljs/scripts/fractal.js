@@ -224,6 +224,9 @@ var project = function() {
 var logBase = 1.0 / Math.log(2.0);
 var logHalfBase = Math.log(0.5)*logBase;
 
+// what a mess! this part will need some love & refactoring
+var fractalTypeById = {0:'mandel',1:'mandel3',2:'burningship'};
+var fractalIdByType = {'mandel':0,'mandel3':1,'burningship':2};
 var fractalFunctionList = {
 	'mandelsmooth' : function(cx,cy) {
 		var znx=0, zny=0, sqx=0, sqy=0, i=0, j=0;
@@ -255,29 +258,33 @@ var fractalFunctionList = {
 		return i;	
 	},
 	'mandel3' : function(cx,cy) {
-		var zx=0, zy=0, i=0, znx, zny;
+		var zx=0, zy=0, sqx=0, sqy=0, i=0, znx, zny;
 		while (true) {
-			znx = zx*zx*zx-3*zx*zy*zy+cx;
-			zny = 3*zx*zx*zy-zy*zy*zy+cy;
+			znx = sqx*zx-3*zx*sqy+cx;
+			zny = 3*sqx*zy-sqy*zy+cy;
 			zx = znx;
 			zy = zny;
 			if (++i>=iter)
 				break;
-			if (zx*zx+zy*zy>escape)
+			sqx = zx*zx;
+			sqy = zy*zy;
+			if (sqx+sqy>escape)
 				break;
 		}		
 		return i;
 	},
 	'burningship' : function(cx,cy) {
-		var zx=0, zy=0, i=0, znx, zny;
+		var zx=0, zy=0, sqx=0, sqy=0, i=0, znx, zny;
 		while (true) {
-			znx = zx*zx-zy*zy+cx;
-			zny = 2*zx*zy+cy;
+			zny = (zx+zx)*zy+cy;
+			znx = sqx-sqy+cx;
 			zx = Math.abs(znx);
 			zy = Math.abs(zny);
 			if (++i>=iter)
 				break;
-			if (zx*zx+zy*zy>escape)
+			sqx = zx*zx;
+			sqy = zy*zy;
+			if (sqx+sqy>escape)
 				break;
 		}		
 		return i;
@@ -300,6 +307,11 @@ setFractalDesc: function(desc) {
 		iter = Math.round(desc.i);
 	if (desc.iter)
 		iter = Math.round(desc.iter);
+	if (desc.typeid) {
+		if (!(desc.typeid in fractalTypeById))
+			throw "Invalid fractal type " + desc.typeid;
+		desc.type = fractalTypeById[desc.typeid];
+	}
 	if (desc.type) {
 		if (!(desc.type in fractalFunctionList))
 			throw "Invalid fractal function " + desc.type;
@@ -324,7 +336,7 @@ getFractalDesc: function() {
 		pixelOnP:pixelOnP, 
 		swidth:swidth, sheight:sheight,
 		pxmin:pxmin, pymin:pymin,
-		type:type,
+		type:type,typeid:fractalIdByType[type]
 	};
 	return res;
 },
@@ -359,7 +371,6 @@ publicMethods.setFractalDesc(desc);
 return publicMethods;
 
 };
-
 
 ;/*
  * The palette:
@@ -829,15 +840,30 @@ var callbacks = {		// external callbacks
 
 //-------- private methods
 
+/*
+ * If first letter of URL hash is an 'A'
+ * Decode rest of hash using base64, build three arrays on the buffer:
+ *   Uint8Array, Uint16Array, Float64Array
+ * --bytes ------ array -------------	usage --------------------
+ *   0,1          Uint16Array[0]		version of hash
+ *   2,3          Uint16Array[1]		number of iterations
+ *   4            Uint8Array[4]	        type of fractal
+ *   5,6,7        reserved
+ *   8-11         Float64Array[1]		x 
+ *   12-15        Float64Array[1]		y
+ *   16-19        Float64Array[1]		w (extent) 
+ */
 var updateUrl = function() {
 	var desc = renderer.getFractalDesc();
 
 	// create a buffer and two views on it to store fractal parameters
 	var buffer = new ArrayBuffer(32);
+	var byteArray = new Uint8Array(buffer);
 	var intArray = new Uint16Array(buffer);
 	var doubleArray = new Float64Array(buffer);
 	intArray[0] = 1; // version number
 	intArray[1] = desc.iter;
+	byteArray[4] = desc.typeid;
 	doubleArray[1] = desc.x;
 	doubleArray[2] = desc.y;
 	doubleArray[3] = desc.w;
@@ -862,6 +888,7 @@ var readUrl = function() {
 			base64String = base64String.split("_").join("=");
 
 			var buffer = FractalJS.util.base64ToArrayBuffer(base64String);
+			var byteArray = new Uint8Array(buffer);
 			var intArray = new Uint16Array(buffer);
 			var doubleArray = new Float64Array(buffer);
 
@@ -869,7 +896,8 @@ var readUrl = function() {
 				x:doubleArray[1],
 				y:doubleArray[2],
 				w:doubleArray[3],
-				iter:intArray[1]
+				iter:intArray[1],
+				typeid:byteArray[4],
 			};
 
 			//console.log("Initialization", desc);
