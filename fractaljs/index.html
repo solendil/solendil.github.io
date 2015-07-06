@@ -138,7 +138,7 @@ var fractal;
 var updateShare = function() {
   var url = document.location.href;
   $("#share_link").html("<a href='"+url+"'>this link</a>")
-  $("#share_embed").html("&lt;iframe onmousewheel=''<br/>src='http://solendil.github.io/fractaljs/fractaljs.iframe.html"+window.location.hash+"'><br/>&lt;/iframe>");
+  $("#share_embed").html("&lt;iframe onmousewheel=''<br/>src='http://solendil.github.io/fractaljs/iframe.html"+window.location.hash+"'><br/>&lt;/iframe>");
   $(".twitter-share-button").attr("href", "https://twitter.com/intent/tweet?url="+encodeURIComponent(document.location.href)+"&text=Check%20this%20nice%20%23fractaljs%20!")
 }
 
