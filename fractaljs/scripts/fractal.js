@@ -396,19 +396,12 @@ FractalJS.Colormap = function(params) {
 
 var buffer = new Int32Array(params.buffer);
 var offset = params.offset || 0.0;
-var density = params.density || 1;
+var density = params.density || 20;
 var resolution = buffer.length;
-var factor;
 
 //-------- private methds
 
-var project = function() {
-	factor = resolution/density;
-};
-
 //-------- constructor
-
-project();
 
 //-------- public methods
 
@@ -417,7 +410,7 @@ return {
 getColorForIter: function(iter) {
 	if (iter===0)
 		return 0xFF000000;
-	var res = buffer[Math.trunc((iter*density+offset*resolution)%resolution)];
+	var res = buffer[Math.floor((iter*density+offset*resolution)%resolution)];
 	return res;
 },
 
@@ -428,7 +421,8 @@ buffer: function() {
 getDesc: function() {
 	return {
 		offset:offset,
-		density:density
+		density:density,
+		buffer:buffer,
 	};
 },
 
@@ -438,7 +432,6 @@ setDesc: function(cmap) {
 		offset = cmap.offset;
 	if (cmap.density)
 		density = cmap.density;
-	project();
 }
 
 };
@@ -550,13 +543,25 @@ var callbackEndFrame = function() {
 var callbackInterruptFrame = function() {
 };
 
-// TODO : insert this in the drawing queue ?
-var drawPalette = function() {
+var refreshColormap = function() {
+	//var start = performance.now();
 	var iterbuffer = engine.getBuffer();
 	var limit = canvas.height*canvas.width;
-	for (var i=0; i<limit; i++) 
-		idata32[i] = colormap.getColorForIter(iterbuffer[i]);
+	// Performing the colormap refresh in place instead of calling the colormap
+	// object brings a 5x performance in Chrome (25ms instead of 150).
+	var cmap = colormap.getDesc();
+	var buffer=cmap.buffer, offset=cmap.offset*buffer.length, 
+		density=cmap.density, resolution=buffer.length;
+	for (var i=0; i<limit; i++) {
+		var iter = iterbuffer[i];
+		if (iter===0)
+			idata32[i] = 0xFF000000;
+		else
+			idata32[i] = buffer[~~((iter*density+offset)%resolution)];
+	}
 	context.putImageData(imageData, 0, 0, 0, 0, canvas.width, canvas.height);
+	//var end = performance.now();
+	//console.log("colormap refreshed in ", (end-start))
 };
 
 var drawItem = function() {
@@ -587,8 +592,8 @@ var drawItem = function() {
 
 public_methods = {
 
-drawPalette: function() {
-	drawPalette();
+refreshColormap: function() {
+	refreshColormap();
 },
 
 draw: function(vector) {
@@ -1124,8 +1129,8 @@ draw: function() {
 	renderer.draw();
 },
 
-drawPalette: function() {
-	renderer.drawPalette();
+refreshColormap: function() {
+	renderer.refreshColormap();
 },
 
 setColorDesc: function(cmap) {
