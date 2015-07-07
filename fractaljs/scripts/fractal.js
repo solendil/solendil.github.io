@@ -383,124 +383,31 @@ return publicMethods;
 };
 
 ;/*
- * The palette:
- * - is a looping gradient in the range [0,1[
- * - the gradient is mapped to fractal iterations using a resolution and an offset
- * - there must be at least one stop, a stop is an index and an RGB color
+ * The color map:
+ * - is an array of colors whose size is the "resolution"
+ * - a fractal iteration number is mapped onto this array according to 
+ *   the "offset" (range [0..1[) and the "density" (range [0.1..10[)
+ * - is created from the different palette builders
  */
-FractalJS.Palette = function(params) {
+FractalJS.Colormap = function(params) {
 "use strict";
 
 //-------- private members
 
-var stops;
-var resolution = params.resolution;
-var buffer = new Int32Array(resolution);
-
-var offset = params.offset;
-var modulo = params.modulo;
-var factor;			// factor for projection iteration -> color space
-
-var callbacks = {		// external callbacks
-	"palette.change":[],
-};
+var buffer = new Int32Array(params.buffer);
+var offset = params.offset || 0.0;
+var density = params.density || 1;
+var resolution = buffer.length;
+var factor;
 
 //-------- private methds
 
-var buildStops = function(params) {
-	if (params.constructor === Array) {
-		stops = params;
-		return;
-	}
-	stops = [];
-	var tstops = params.split(";");
-	for (var i in tstops) {
-		var tstop = tstops[i];
-		var items = tstop.split("#");
-		var index = Number(items[0]);
-		var red = parseInt(items[1].substring(0,2),16);
-		var green = parseInt(items[1].substring(2,4),16);
-		var blue = parseInt(items[1].substring(4,6),16);
-		stops.push({
-			index:index,r:red,g:green,b:blue
-		});
-	}
-
-};
-
-var copyStop = function(stop, offset) {
-	return {
-		index:stop.index+(offset?offset:0), 
-		r:stop.r,
-		g:stop.g,
-		b:stop.b
-	};
-};
-
-var buildBuffer = function() {
-	var i;
-	var byteBuffer = new Uint8Array(buffer.buffer); // create an 8-bit view on the buffer
-	
-	//console.log(offset)
-	var gstops = [];
-	for (i in stops) {
-		var stop = copyStop(stops[i], offset);
-		stop.index = stop.index%1;
-		gstops.push(stop);
-	}
-	gstops.sort(function(a,b){return a.index-b.index;});
-	gstops.push(copyStop(gstops[0], +1));
-	gstops.splice(0, 0, copyStop(gstops[gstops.length-2], -1));
-	//console.log(gstops);
-	var fstops=gstops;
-
-	var stopAindex = 0;
-	var stopBindex = 1;
-	var stopA = fstops[stopAindex];
-	var stopB = fstops[stopBindex];
-	var stopRange = stopB.index-stopA.index;
-	//console.log("stops", stopAindex, stopBindex);
-	//console.log("stoprange", stopRange);
-	
-	var bufferIndex = 0;
-	for (i=0; i<resolution; i++) {
-		var x01 = i/resolution;
-		//console.log("-----------", i, x01);
-		if (x01>=stopB.index) { 
-			//console.log("swap")
-			stopAindex++;
-			stopBindex++;
-			stopA = fstops[stopAindex];
-			stopB = fstops[stopBindex];
-			stopRange = stopB.index-stopA.index;
-			//console.log("stopindeices", stopAindex, stopBindex);
-			//console.log("stoprange", stopRange);
-		}
-		
-		var stopdelta = (x01-stopA.index) / stopRange;
-		//console.log("delta", stopdelta);
-
-		var r = stopA.r + (stopB.r - stopA.r)*stopdelta;
-		var g = stopA.g + (stopB.g - stopA.g)*stopdelta;
-		var b = stopA.b + (stopB.b - stopA.b)*stopdelta;
-		//var rgb = util.hsv_to_rgb(h, s, v);
-		//console.log("rgb",r,g,b);
-		byteBuffer[bufferIndex++] = r;
-		byteBuffer[bufferIndex++] = g;
-		byteBuffer[bufferIndex++] = b;
-		byteBuffer[bufferIndex++] = 255 ;
-	}
-};
-
 var project = function() {
-	factor = resolution/modulo;
-	//console.log(factor, resolution, modulo)
+	factor = resolution/density;
 };
 
 //-------- constructor
 
-buildStops(params.stops);
-buildBuffer();
 project();
 
 //-------- public methods
@@ -509,57 +416,30 @@ return {
 
 getColorForIter: function(iter) {
 	if (iter===0)
-		// TODO paletize this color
 		return 0xFF000000;
-	//var res = buffer[iter%resolution];
-	//console.log(iter, factor, resolution, )
-	var res = buffer[Math.trunc(iter*factor%resolution)];
+	var res = buffer[Math.trunc((iter*density+offset*resolution)%resolution)];
 	return res;
 },
 
-// what a mess...
-getState: function() {
-	return {buffer:buffer, stops:stops, offset:offset, modulo:modulo};
+buffer: function() {
+	return buffer;
 },
 
-setShortDesc: function(state) {
-	if (state.offset)
-		offset = state.offset;
-	if (state.modulo)
-		modulo = state.modulo;
-	buildStops(state.stops);
-	buildBuffer();
+getDesc: function() {
+	return {
+		offset:offset,
+		density:density
+	};
+},
+
+setDesc: function(cmap) {
+	//console.log("set ", cmap)
+	if (cmap.offset)
+		offset = cmap.offset;
+	if (cmap.density)
+		density = cmap.density;
 	project();
-},
-
-getShortDesc: function() {
-	var short="";
-	for (var i in stops) {
-		var stop = stops[i];
-		short += stop.index;
-		short += util.getHashColor(stop.r, stop.g, stop.b);
-		short += ";";
-	}
-	return {modulo:modulo, offset:offset, stops:short.slice(0,-1)};
-},
-
-setState: function(state) {
-	if (state.offset)
-		offset = state.offset;
-	if (state.modulo)
-		modulo = state.modulo;
-	util.callbackHelp(callbacks["palette.change"]);
-	project();
-},
-
-build: function(state) {
-	buildBuffer();
-},
-
-on: function(event, callback) {
-	callbacks[event].push(callback);
 }
-
 
 };
 
@@ -568,7 +448,7 @@ on: function(event, callback) {
 
 ;/*
  * The renderer:
- * - knows a fractal engine, a palette and a canvas
+ * - knows a fractal engine, a colormap and a canvas
  * - can draw a frame, knows the movement vector if applicable
  * - splits renderings into "draw items", can cancel frames
  */
@@ -582,7 +462,7 @@ var util = FractalJS.util;
 var canvas, context;	// the canvas on which to display 
 var imageData, idata32; // canvas backbuffer and view as 32bit-int array
 var engine;				// the fractal engine
-var palette; 			// palette
+var colormap; 			// color map
 
 var drawList = [];		// list of remaining items to be drawn 
 var nextCallback;		// id of the next callback for the draw list
@@ -601,7 +481,7 @@ params.fractalDesc.swidth = canvas.width;
 params.fractalDesc.sheight = canvas.height;
 
 engine = new FractalJS.Engine(params.fractalDesc);
-palette = new FractalJS.Palette(params.palette);
+colormap = params.colormap;
 
 //-------- private methods
 
@@ -675,7 +555,7 @@ var drawPalette = function() {
 	var iterbuffer = engine.getBuffer();
 	var limit = canvas.height*canvas.width;
 	for (var i=0; i<limit; i++) 
-		idata32[i] = palette.getColorForIter(iterbuffer[i]);
+		idata32[i] = colormap.getColorForIter(iterbuffer[i]);
 	context.putImageData(imageData, 0, 0, 0, 0, canvas.width, canvas.height);
 };
 
@@ -687,7 +567,7 @@ var drawItem = function() {
 		var dx = sy*canvas.width+tile.x1;
 		for (var sx=tile.x1; sx<tile.x2; sx++) {
 			var iter = iterbuffer[dx];
-			var color = palette.getColorForIter(iter);
+			var color = colormap.getColorForIter(iter);
 			idata32[dx++] = color;
 		}
 	}
@@ -818,8 +698,16 @@ getFractalDesc: function () {
 	return engine.getFractalDesc();
 },
 
-getPalette: function () {
-	return palette;
+getColormap: function() {
+	return colormap;
+},
+
+getColorDesc: function() {
+	return colormap.getDesc();
+},
+
+setColorDesc: function(cmap) {
+	return colormap.setDesc(cmap);
 }
 
 };
@@ -844,10 +732,6 @@ var dragX, dragY;		// start dragging point
 var dragStartDesc;		// start fractal description
 var ldragX, ldragY;		// last dragging point
 
-var callbacks = {		// external callbacks
-	"mouse.control":[],
-};
-
 //-------- private methods
 
 /*
@@ -858,25 +742,33 @@ var callbacks = {		// external callbacks
  *   0,1          Uint16Array[0]		version of hash
  *   2,3          Uint16Array[1]		number of iterations
  *   4            Uint8Array[4]	        type of fractal
- *   5,6,7        reserved
- *   8-11         Float64Array[1]		x 
- *   12-15        Float64Array[1]		y
- *   16-19        Float64Array[1]		w (extent) 
+ *   5            Uint8Array[5]	        type of gradient
+ *   6,7          Uint16Array[3]		color offset (times 10000)
+ *   8-15         Float64Array[1]		x 
+ *   16-23        Float64Array[2]		y
+ *   24-31        Float64Array[3]		w (extent) 
+ *   32-35        Float32Array[8]		color density (if present, 20 if not)
+ *   36-39        reserved
  */
 var updateUrl = function() {
 	var desc = renderer.getFractalDesc();
+	var color = renderer.getColorDesc();
 
 	// create a buffer and two views on it to store fractal parameters
-	var buffer = new ArrayBuffer(32);
+	var buffer = new ArrayBuffer(40);
 	var byteArray = new Uint8Array(buffer);
 	var intArray = new Uint16Array(buffer);
 	var doubleArray = new Float64Array(buffer);
+	var floatArray = new Float32Array(buffer);
 	intArray[0] = 1; // version number
 	intArray[1] = desc.iter;
 	byteArray[4] = desc.typeid;
+	byteArray[5] = color.typeid;
+	intArray[3] = color.offset*10000;
 	doubleArray[1] = desc.x;
 	doubleArray[2] = desc.y;
 	doubleArray[3] = desc.w;
+	floatArray[8] = color.density;
 
 	// encode as base64 and put in the URL
 	// https://stackoverflow.com/questions/9267899/arraybuffer-to-base64-encoded-string/11562550#11562550
@@ -901,6 +793,7 @@ var readUrl = function() {
 			var byteArray = new Uint8Array(buffer);
 			var intArray = new Uint16Array(buffer);
 			var doubleArray = new Float64Array(buffer);
+			var floatArray = new Float32Array(buffer);
 
 			var desc = {
 				x:doubleArray[1],
@@ -910,8 +803,15 @@ var readUrl = function() {
 				typeid:byteArray[4],
 			};
 
-			//console.log("Initialization", desc);
+			var color = {
+				offset:intArray[3]/10000.0,
+				density:byteArray.length>32?floatArray[8]:20,
+				typeid:byteArray[5],
+			};
+
+			//console.log("Initialization", desc, color);
 			renderer.setFractalDesc(desc);
+			renderer.setColorDesc(color);
 		}
 	} catch(e) {
 		console.error("Could not read URL");
@@ -1031,6 +931,120 @@ events.on("api.change", updateUrl);
 
 };
 ;/*
+ * The color map builder generates colormaps from a variety of means including:
+ * - stops
+ */
+FractalJS.Colormapbuilder = function(params) {
+"use strict";
+ 
+//-------- public methods
+
+return {
+
+fromstops: function(params) {
+
+var stops;
+var resolution = params.resolution;
+var buffer = new Int32Array(resolution);
+
+var buildStops = function(params) {
+	if (params.constructor === Array) {
+		stops = params;
+		return;
+	}
+	stops = [];
+	var tstops = params.split(";");
+	for (var i in tstops) {
+		var tstop = tstops[i];
+		var items = tstop.split("#");
+		var index = Number(items[0]);
+		var red = parseInt(items[1].substring(0,2),16);
+		var green = parseInt(items[1].substring(2,4),16);
+		var blue = parseInt(items[1].substring(4,6),16);
+		stops.push({
+			index:index,r:red,g:green,b:blue
+		});
+	}
+
+};
+
+var copyStop = function(stop, offset) {
+	return {
+		index:stop.index+(offset?offset:0), 
+		r:stop.r,
+		g:stop.g,
+		b:stop.b
+	};
+};
+
+var buildBuffer = function() {
+	var i;
+	var byteBuffer = new Uint8Array(buffer.buffer); // create an 8-bit view on the buffer
+	
+	//console.log(offset)
+	var gstops = [];
+	for (i in stops) {
+		var stop = copyStop(stops[i], 0);
+		stop.index = stop.index%1;
+		gstops.push(stop);
+	}
+	gstops.sort(function(a,b){return a.index-b.index;});
+	gstops.push(copyStop(gstops[0], +1));
+	gstops.splice(0, 0, copyStop(gstops[gstops.length-2], -1));
+	//console.log(gstops);
+	var fstops=gstops;
+
+	var stopAindex = 0;
+	var stopBindex = 1;
+	var stopA = fstops[stopAindex];
+	var stopB = fstops[stopBindex];
+	var stopRange = stopB.index-stopA.index;
+	//console.log("stops", stopAindex, stopBindex);
+	//console.log("stoprange", stopRange);
+	
+	var bufferIndex = 0;
+	for (i=0; i<resolution; i++) {
+		var x01 = i/resolution;
+		//console.log("-----------", i, x01);
+		if (x01>=stopB.index) { 
+			//console.log("swap")
+			stopAindex++;
+			stopBindex++;
+			stopA = fstops[stopAindex];
+			stopB = fstops[stopBindex];
+			stopRange = stopB.index-stopA.index;
+			//console.log("stopindeices", stopAindex, stopBindex);
+			//console.log("stoprange", stopRange);
+		}
+		
+		var stopdelta = (x01-stopA.index) / stopRange;
+		//console.log("delta", stopdelta);
+
+		var r = stopA.r + (stopB.r - stopA.r)*stopdelta;
+		var g = stopA.g + (stopB.g - stopA.g)*stopdelta;
+		var b = stopA.b + (stopB.b - stopA.b)*stopdelta;
+		//var rgb = util.hsv_to_rgb(h, s, v);
+		//console.log("rgb",r,g,b);
+		byteBuffer[bufferIndex++] = r;
+		byteBuffer[bufferIndex++] = g;
+		byteBuffer[bufferIndex++] = b;
+		byteBuffer[bufferIndex++] = 255 ;
+	}
+};
+
+buildStops(params.stops);
+buildBuffer();
+
+return FractalJS.Colormap({buffer:buffer});
+
+}
+
+};
+
+};
+
+
+;/*
  * The main fractal module:
  * - receives one single object describing a fractal to display/manipulate
  * - provides additional methods and callbacks
@@ -1039,15 +1053,6 @@ events.on("api.change", updateUrl);
 {
     canvas : <DOM canvas node>		// mandatory canvas
     fractalDesc	: <JSON object>		// mandatory fractal description (see engine.js)
-    palette : {						// the default palette object
-		stops : [
-			{index:0,r:0,g:0,b:0},
-			{index:0.5,r:255,g:255,b:255},
-		],
-		resolution : 100,
-		offset : 0,
-		modulo : 0
-    }
     renderer : {
 		numberOfTiles : 1,			// number of tiles to draw (approximate)
 		drawAfterInit : true,		// should the fractal be drawn after init
@@ -1075,20 +1080,11 @@ if (!params.canvas || !params.canvas.width)
 if (!params.fractalDesc) 
 	throw "Fractal Description is not set";
 
-if (!params.palette) 
-	params.palette = {
-		stops : [
-			{index:0,r:0,g:0,b:0},
-			{index:0.5,r:255,g:255,b:255},
-		],
-    };
-
-params.palette = util.defaultProps(params.palette, {
-	stops: [],
-	resolution: 1000,
-	offset: 0,
-	modulo: 50,
-});
+if (!params.colormap) 
+	params.colormap = FractalJS.Colormapbuilder().fromstops({
+      resolution:1000,
+      stops:"0#080560;0.2#2969CB;0.40#F1FEFE;0.60#FCA425;0.85#000000",
+    });
 
 params.renderer = util.defaultProps(params.renderer, {
 	numberOfTiles: 1,
@@ -1124,16 +1120,22 @@ getFractalDesc: function () {
 	return renderer.getFractalDesc();
 },
 
-getPalette: function () {
-	return renderer.getPalette();
-},
-
 draw: function() {
 	renderer.draw();
 },
 
 drawPalette: function() {
 	renderer.drawPalette();
+},
+
+setColorDesc: function(cmap) {
+	var res = renderer.setColorDesc(cmap);
+	events.send("api.change");
+	return res;
+},
+
+getColorDesc: function() {
+	return renderer.getColorDesc();
 },
 
 events: events,
