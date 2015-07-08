@@ -51,6 +51,92 @@ var toHex2 = function(number) {
 
 return {
 
+/* Monotone cubic spline interpolation
+   Usage example:
+	var f = createInterpolant([0, 1, 2, 3, 4], [0, 1, 4, 9, 16]);
+	var message = '';
+	for (var x = 0; x <= 4; x += 0.5) {
+		var xSquared = f(x);
+		message += x + ' squared is about ' + xSquared + '\n';
+	}
+	alert(message);
+	https://en.wikipedia.org/wiki/Monotone_cubic_interpolation
+*/
+/* jshint ignore:start */
+createInterpolant: function(xs, ys) {
+	var i, length = xs.length;
+	
+	// Deal with length issues
+	if (length != ys.length) { throw 'Need an equal count of xs and ys.'; }
+	if (length === 0) { return function(x) { return 0; }; }
+	if (length === 1) {
+		// Impl: Precomputing the result prevents problems if ys is mutated later and allows garbage collection of ys
+		// Impl: Unary plus properly converts values to numbers
+		var result = +ys[0];
+		return function(x) { return result; };
+	}
+	
+	// Rearrange xs and ys so that xs is sorted
+	var indexes = [];
+	for (i = 0; i < length; i++) { indexes.push(i); }
+	indexes.sort(function(a, b) { return xs[a] < xs[b] ? -1 : 1; });
+	var oldXs = xs, oldYs = ys;
+	// Impl: Creating new arrays also prevents problems if the input arrays are mutated later
+	xs = []; ys = [];
+	// Impl: Unary plus properly converts values to numbers
+	for (i = 0; i < length; i++) { xs.push(+oldXs[indexes[i]]); ys.push(+oldYs[indexes[i]]); }
+	
+	// Get consecutive differences and slopes
+	var dys = [], dxs = [], ms = [];
+	for (i = 0; i < length - 1; i++) {
+		var dx = xs[i + 1] - xs[i], dy = ys[i + 1] - ys[i];
+		dxs.push(dx); dys.push(dy); ms.push(dy/dx);
+	}
+	
+	// Get degree-1 coefficients
+	var c1s = [ms[0]];
+	for (i = 0; i < dxs.length - 1; i++) {
+		var m = ms[i], mNext = ms[i + 1];
+		if (m*mNext <= 0) {
+			c1s.push(0);
+		} else {
+			var dx = dxs[i], dxNext = dxs[i + 1], common = dx + dxNext;
+			c1s.push(3*common/((common + dxNext)/m + (common + dx)/mNext));
+		}
+	}
+	c1s.push(ms[ms.length - 1]);
+	
+	// Get degree-2 and degree-3 coefficients
+	var c2s = [], c3s = [];
+	for (i = 0; i < c1s.length - 1; i++) {
+		var c1 = c1s[i], m = ms[i], invDx = 1/dxs[i], common = c1 + c1s[i + 1] - m - m;
+		c2s.push((m - c1 - common)*invDx); c3s.push(common*invDx*invDx);
+	}
+	
+	// Return interpolant function
+	return function(x) {
+		// The rightmost point in the dataset should give an exact result
+		var i = xs.length - 1;
+		if (x == xs[i]) { return ys[i]; }
+		
+		// Search for the interval x is in, returning the corresponding y if x is one of the original xs
+		var low = 0, mid, high = c3s.length - 1;
+		while (low <= high) {
+			mid = Math.floor(0.5*(low + high));
+			var xHere = xs[mid];
+			if (xHere < x) { low = mid + 1; }
+			else if (xHere > x) { high = mid - 1; }
+			else { return ys[mid]; }
+		}
+		i = Math.max(0, high);
+		
+		// Interpolate
+		var diff = x - xs[i], diffSq = diff*diff;
+		return ys[i] + c1s[i]*diff + c2s[i]*diffSq + c3s[i]*diff*diffSq;
+	};
+},
+/* jshint ignore:end */
+
 /*
  * Convert hue-saturation-value/luminosity to RGB.
  * Input ranges:
@@ -398,6 +484,7 @@ var buffer = new Int32Array(params.buffer);
 var offset = params.offset || 0.0;
 var density = params.density || 20;
 var resolution = buffer.length;
+var typeid = params.typeid;
 
 //-------- private methds
 
@@ -423,6 +510,7 @@ getDesc: function() {
 		offset:offset,
 		density:density,
 		buffer:buffer,
+		typeid:typeid,
 	};
 },
 
@@ -432,6 +520,12 @@ setDesc: function(cmap) {
 		offset = cmap.offset;
 	if (cmap.density)
 		density = cmap.density;
+	if (cmap.typeid)
+		typeid = cmap.typeid;
+	if (cmap.buffer) {
+		buffer = cmap.buffer;
+		resolution = cmap.buffer.length;
+	}
 }
 
 };
@@ -758,6 +852,7 @@ var ldragX, ldragY;		// last dragging point
 var updateUrl = function() {
 	var desc = renderer.getFractalDesc();
 	var color = renderer.getColorDesc();
+	//console.log(color)
 
 	// create a buffer and two views on it to store fractal parameters
 	var buffer = new ArrayBuffer(40);
@@ -812,6 +907,8 @@ var readUrl = function() {
 				offset:intArray[3]/10000.0,
 				density:byteArray.length>32?floatArray[8]:20,
 				typeid:byteArray[5],
+				resolution:1000,
+				buffer:FractalJS.Colormapbuilder().fromId(1000, byteArray[5]),
 			};
 
 			//console.log("Initialization", desc, color);
@@ -820,6 +917,7 @@ var readUrl = function() {
 		}
 	} catch(e) {
 		console.error("Could not read URL");
+		console.error(e);
 	}
 };
 
@@ -942,107 +1040,91 @@ events.on("api.change", updateUrl);
 FractalJS.Colormapbuilder = function(params) {
 "use strict";
  
-//-------- public methods
+var standardGradients = {
+	0:"0#080560;0.2#2969CB;0.40#F1FEFE;0.60#FCA425;0.85#000000",
+	1:"0.0775#78591e;0.55#d6e341", // gold
+	2:"0#0000FF;0.33#FFFFFF;0.66#FF0000", // bleublancrouge
+	3:"0.08#09353e;0.44#1fc3e6;0.77#08173e", // night			
+	4:"0#000085;0.25#fffff5;0.5#ffb500;0.75#9c0000", // defaultProps 	
+	5:"0#000000;0.25#000000;0.5#7f7f7f;0.75#ffffff;0.975#ffffff", // emboss		
 
-return {
-
-fromstops: function(params) {
-
-var stops;
-var resolution = params.resolution;
-var buffer = new Int32Array(resolution);
-
-var buildStops = function(params) {
-	if (params.constructor === Array) {
-		stops = params;
-		return;
-	}
-	stops = [];
-	var tstops = params.split(";");
-	for (var i in tstops) {
-		var tstop = tstops[i];
-		var items = tstop.split("#");
-		var index = Number(items[0]);
-		var red = parseInt(items[1].substring(0,2),16);
-		var green = parseInt(items[1].substring(2,4),16);
-		var blue = parseInt(items[1].substring(4,6),16);
-		stops.push({
-			index:index,r:red,g:green,b:blue
-		});
-	}
+	// flatUI palettes (http://designmodo.github.io/Flat-UI/)
+	10:"0#000000;0.25#16A085;0.5#FFFFFF;0.75#16A085", // green sea	
+	11:"0#000000;0.25#27AE60;0.5#FFFFFF;0.75#27AE60", // nephritis
+	12:"0#000000;0.25#2980B9;0.5#FFFFFF;0.75#2980B9", // nephritis
+	13:"0#000000;0.25#8E44AD;0.5#FFFFFF;0.75#8E44AD", // wisteria	
+	14:"0#000000;0.25#2C3E50;0.5#FFFFFF;0.75#2C3E50", // midnight blue	
+	15:"0#000000;0.25#F39C12;0.5#FFFFFF;0.75#F39C12", // orange
+	16:"0#000000;0.25#D35400;0.5#FFFFFF;0.75#D35400", // pumpkin	
+	17:"0#000000;0.25#C0392B;0.5#FFFFFF;0.75#C0392B", // pmoegranate
+	18:"0#000000;0.25#BDC3C7;0.5#FFFFFF;0.75#BDC3C7", // silver
+	19:"0#000000;0.25#7F8C8D;0.5#FFFFFF;0.75#7F8C8D", // asbestos
 
 };
 
-var copyStop = function(stop, offset) {
-	return {
-		index:stop.index+(offset?offset:0), 
-		r:stop.r,
-		g:stop.g,
-		b:stop.b
-	};
+var fromstops = function(resolution, stops) {
+
+
+var buffer = new Int32Array(resolution);
+var indices=[], reds=[], greens=[], blues=[];
+
+var buildStops = function(params) {
+	var stops = params.split(";");
+	for (var i in stops) {
+		var stop = stops[i];
+		var items = stop.split("#");
+		indices.push(Number(items[0]));
+		reds.push(parseInt(items[1].substring(0,2),16));
+		greens.push(parseInt(items[1].substring(2,4),16));
+		blues.push(parseInt(items[1].substring(4,6),16));
+	}
+	//console.log(indices, reds, greens, blues)
 };
 
 var buildBuffer = function() {
-	var i;
+	// loop first stop to end
+	indices.push(indices[0]+1);
+	reds.push(reds[0]);
+	greens.push(greens[0]);
+	blues.push(blues[0]);
+	//console.log(indices, reds, greens, blues)
+
+	var interR = FractalJS.util.createInterpolant(indices, reds);
+	var interG = FractalJS.util.createInterpolant(indices, greens);
+	var interB = FractalJS.util.createInterpolant(indices, blues);
+
 	var byteBuffer = new Uint8Array(buffer.buffer); // create an 8-bit view on the buffer
-	
-	//console.log(offset)
-	var gstops = [];
-	for (i in stops) {
-		var stop = copyStop(stops[i], 0);
-		stop.index = stop.index%1;
-		gstops.push(stop);
-	}
-	gstops.sort(function(a,b){return a.index-b.index;});
-	gstops.push(copyStop(gstops[0], +1));
-	gstops.splice(0, 0, copyStop(gstops[gstops.length-2], -1));
-	//console.log(gstops);
-	var fstops=gstops;
-
-	var stopAindex = 0;
-	var stopBindex = 1;
-	var stopA = fstops[stopAindex];
-	var stopB = fstops[stopBindex];
-	var stopRange = stopB.index-stopA.index;
-	//console.log("stops", stopAindex, stopBindex);
-	//console.log("stoprange", stopRange);
-	
 	var bufferIndex = 0;
-	for (i=0; i<resolution; i++) {
-		var x01 = i/resolution;
-		//console.log("-----------", i, x01);
-		if (x01>=stopB.index) { 
-			//console.log("swap")
-			stopAindex++;
-			stopBindex++;
-			stopA = fstops[stopAindex];
-			stopB = fstops[stopBindex];
-			stopRange = stopB.index-stopA.index;
-			//console.log("stopindeices", stopAindex, stopBindex);
-			//console.log("stoprange", stopRange);
-		}
-		
-		var stopdelta = (x01-stopA.index) / stopRange;
-		//console.log("delta", stopdelta);
-
-		var r = stopA.r + (stopB.r - stopA.r)*stopdelta;
-		var g = stopA.g + (stopB.g - stopA.g)*stopdelta;
-		var b = stopA.b + (stopB.b - stopA.b)*stopdelta;
-		//var rgb = util.hsv_to_rgb(h, s, v);
-		//console.log("rgb",r,g,b);
-		byteBuffer[bufferIndex++] = r;
-		byteBuffer[bufferIndex++] = g;
-		byteBuffer[bufferIndex++] = b;
+	for (var i=0; i<resolution; i++) {
+		var index = i/resolution;
+		if (index<indices[0]) index+=1;
+		byteBuffer[bufferIndex++] = interR(index);
+		byteBuffer[bufferIndex++] = interG(index);
+		byteBuffer[bufferIndex++] = interB(index);
 		byteBuffer[bufferIndex++] = 255 ;
 	}
 };
 
-buildStops(params.stops);
+buildStops(stops);
 buildBuffer();
 
-return FractalJS.Colormap({buffer:buffer});
+return buffer;
+};
 
-}
+//-------- public methods
+
+return {
+
+getStandardGradients: function() {return standardGradients;},
+
+fromId: function(resolution, id) {
+	return fromstops(resolution, standardGradients[id]);
+},
+
+// with cubic interpolation
+fromstops: function(resolution, stops) {
+	return fromstops(resolution, stops);
+},
 
 };
 
@@ -1086,10 +1168,11 @@ if (!params.fractalDesc)
 	throw "Fractal Description is not set";
 
 if (!params.colormap) 
-	params.colormap = FractalJS.Colormapbuilder().fromstops({
-      resolution:1000,
-      stops:"0#080560;0.2#2969CB;0.40#F1FEFE;0.60#FCA425;0.85#000000",
-    });
+	params.colormap = FractalJS.Colormap({
+      	typeid:0,
+      	resolution:1000,
+		buffer:FractalJS.Colormapbuilder().fromId(1000, 0)
+	});
 
 params.renderer = util.defaultProps(params.renderer, {
 	numberOfTiles: 1,
