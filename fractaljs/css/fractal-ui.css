@@ -7,6 +7,7 @@
 
 .navbar {
   margin-bottom:0;
+  border-radius:0;
 }
 .navbar-inverse:hover, .navbar-inverse.active {
   background: rgba(47,65,84,0.95); 
@@ -18,7 +19,7 @@
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 1);
   transition:0.25s;
 }
-.navbar-inverse .navbar-nav>li>a:focus {
+.navbar-inverse .navbar-nav>li>a:focus, .navbar-inverse .navbar-brand:focus {
   color:#FFF;
 }
 
@@ -75,4 +76,12 @@ div.gradient:hover {
 canvas.gradient {
   position:fixed;
   z-index: auto;
+}
+
+.alertbox {
+  position:fixed;
+  width:40%;
+  bottom:0em;
+  left:1em;
+  display:none;
 }
