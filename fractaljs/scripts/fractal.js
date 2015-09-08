@@ -623,8 +623,10 @@ onmessage = function(param) {
 	if (!data)
 		console.error(param);
 	if (data.action === "setDesc") {
+		//console.log("receive DESC", param)
 		engine.setDesc(data.desc);
 	} else if (data.action === "draw") {
+		//console.log("receive DRAW", param)
 		if (data.quality==200) engine.drawTileOnBuffer(data.tile);
 		else if (data.quality==100) engine.drawSubTileOnBuffer(data.tile);
 		else if (data.quality==300) engine.drawSuperTileOnBuffer(data.tile);
@@ -653,13 +655,20 @@ return blobURL;
  * - knows fractal parameters and perform basic computations on them (pixel ratio, zoom limit, etc...)
  * - instanciates and maintains workers to perform the actual fractal computations
  */
-FractalJS.Engine = function(nbThreads) {
+FractalJS.Engine = function(nbThreads, renderer) {
 "use strict";
 
 var desc = {};
 var workers = [];
-for (var i=0; i<nbThreads; i++)
-  workers.push(FractalJS.EngineWorker());
+
+var createWorkers = function() {
+  workers.length = 0;
+  for (var i=0; i<nbThreads; i++) {
+    var worker = FractalJS.EngineWorker();
+    workers.push(worker);
+    worker.onmessage=renderer.workerMessage;
+  }
+};
 
 var project = function() {
   var sminExtent = Math.min(desc.swidth, desc.sheight);
@@ -698,7 +707,7 @@ this.setDesc = function (other) {
   }
   project();
   for (var w in workers)
-    workers[w].postMessage({action:"setDesc",desc:desc,other:other});
+    workers[w].postMessage({action:"setDesc",desc:desc});
 };
 
 this.getDesc = function () {
@@ -710,6 +719,8 @@ this.getDesc = function () {
     typeid:desc.typeid, smooth:desc.smooth
   };
 };
+
+createWorkers();
 
 };
 ;/*
@@ -815,7 +826,7 @@ if ("hardwareConcurrency" in navigator) {
 	console.log("FractalJS will use the default " + nbOfThreads + " threads");
 }
 
-var engine = new FractalJS.Engine(nbOfThreads);
+var engine;
 
 //-------- public methods
 
@@ -1066,7 +1077,7 @@ var refreshColormap = function() {
 	//console.log("colormap refreshed in ", (end-start))
 };
 
-var workerMessage = function(param) {
+this.workerMessage = function(param) {
 	if (param.data.action === "endTile") {
 		if (param.data.frameId != frameId)
 			return; // frame has changed, drop this result
@@ -1113,8 +1124,8 @@ var workerMessage = function(param) {
   }
 };
 
-engine.eachWorker(function(w) {w.onmessage=workerMessage;});
-this.resize();
+ engine = new FractalJS.Engine(nbOfThreads, this);
+ this.resize();
 
 };
 ;/*
