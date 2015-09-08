@@ -300,8 +300,139 @@ var desc;
 
 //-------- private methds
 
-var logBase = 1.0 / Math.log(2.0);
-var logHalfBase = Math.log(0.5)*logBase;
+var iLog2 = 1.0 / Math.log(2.0);
+var iLog3 = 1.0 / Math.log(3.0);
+
+// core fractal functions
+var fractalFunctionListSmooth = {
+	0 : function(cx,cy) {
+		var znx=0, zny=0, sqx=0, sqy=0, i=0, j=0;
+		for(;i<desc.iter && sqx+sqy<=escape; ++i) {
+			zny = (znx+znx)*zny + cy;
+			znx = sqx-sqy + cx;
+			sqx = znx*znx;
+			sqy = zny*zny;
+		}
+		if (i==desc.iter) return i;
+		for(j=0;j<4; ++j) {
+			zny = (znx+znx)*zny + cy;
+			znx = sqx-sqy + cx;
+			sqx = znx*znx;
+			sqy = zny*zny;
+		}
+		var res = 5 + i - Math.log(Math.log(sqx+sqy)) * iLog2;
+		return res;
+	},
+	// multibrot3
+	1 : function(cx,cy) {
+		var zx=0, zy=0, sqx=0, sqy=0, i=0, znx, zny;
+		while (true) {
+			znx = sqx*zx-3*zx*sqy+cx;
+			zny = 3*sqx*zy-sqy*zy+cy;
+			zx = znx;
+			zy = zny;
+			if (++i>=desc.iter)
+				break;
+			sqx = zx*zx;
+			sqy = zy*zy;
+			if (sqx+sqy>escape)
+				break;
+		}
+		if (i==desc.iter) return i;
+		for(j=0;j<4; ++j) {
+			znx = sqx*zx-3*zx*sqy+cx;
+			zny = 3*sqx*zy-sqy*zy+cy;
+			zx = znx;
+			zy = zny;
+			sqx = zx*zx;
+			sqy = zy*zy;
+		}
+		var res = 5 + i - Math.log(Math.log(sqx+sqy)) * iLog3;
+		return res;
+	},
+	// burningship
+	2 : function(cx,cy) {
+		var zx=0, zy=0, sqx=0, sqy=0, i=0, znx, zny;
+		while (true) {
+			zny = (zx+zx)*zy+cy;
+			znx = sqx-sqy+cx;
+			zx = Math.abs(znx);
+			zy = Math.abs(zny);
+			if (++i>=desc.iter)
+				break;
+			sqx = zx*zx;
+			sqy = zy*zy;
+			if (sqx+sqy>escape)
+				break;
+		}
+		if (i==desc.iter) return i;
+		for(j=0;j<4; ++j) {
+			zny = (zx+zx)*zy+cy;
+			znx = sqx-sqy+cx;
+			zx = Math.abs(znx);
+			zy = Math.abs(zny);
+			sqx = zx*zx;
+			sqy = zy*zy;
+		}
+		var res = 5 + i - Math.log(Math.log(sqx+sqy)) * iLog2;
+		return res;
+	},
+	// tippetts
+	3 : function(cx,cy) {
+		var zx=0, zy=0, sqx=0, sqy=0, i=0;
+		for(;i<desc.iter && sqx+sqy<=escape; ++i) {
+			zx = sqx-sqy+cx;
+			zy = (zx+zx)*zy+cy;
+			sqx = zx*zx;
+			sqy = zy*zy;
+		}
+		return i;
+	},
+	// Julia Set A
+	4 : function(cx,cy) {
+		var znx=cx, zny=cy, sqx=cx*cx, sqy=cy*cy, i=0, j=0;
+		for(;i<desc.iter && sqx+sqy<=escape; ++i) {
+			zny = (znx+znx)*zny + 0.15;
+			znx = sqx-sqy -0.79;
+			sqx = znx*znx;
+			sqy = zny*zny;
+		}
+		if (i==desc.iter) return i;
+		for(j=0;j<4; ++j) {
+			zny = (znx+znx)*zny + 0.15;
+			znx = sqx-sqy -0.79;
+			sqx = znx*znx;
+			sqy = zny*zny;
+		}
+		var res = 5 + i - Math.log(Math.log(sqx+sqy)) * iLog2;
+		return res;
+	},
+	// Phoenix Set
+	5 : function(cx,cy) {
+		var x=-cy, y=cx, xm1=0, ym1=0;
+		var sx=0, sy=0, i=0;
+		var c=0.5667, p=-0.5;
+		for(;i<desc.iter && sx+sy<=escape; ++i) {
+			xp1 = x*x-y*y+c+p*xm1;
+			yp1 = 2*x*y+p*ym1;
+			sx = xp1*xp1;
+			sy = yp1*yp1;
+			xm1=x; ym1=y;
+			x=xp1; y=yp1;
+		}
+		if (i==desc.iter) return i;
+		for(j=0;j<4; ++j) {
+			xp1 = x*x-y*y+c+p*xm1;
+			yp1 = 2*x*y+p*ym1;
+			sx = xp1*xp1;
+			sy = yp1*yp1;
+			xm1=x; ym1=y;
+			x=xp1; y=yp1;
+		}
+		var res = 5 + i - Math.log(Math.log(x*x+y*y)) * iLog2;
+		return res;
+	},
+};
 
 // core fractal functions
 var fractalFunctionList = {
@@ -406,8 +537,6 @@ var fractalFunctionList = {
 		}
 		return i;
 	},
-
-
 };
 
 //-------- public methods
@@ -477,7 +606,11 @@ drawSubTileOnBuffer: function(tile) {
 
 	setDesc: function(other) {
 		desc=other;
-		fractalFunction = fractalFunctionList[desc.typeid];
+		//console.log("setDesc",desc)
+		if (desc.smooth)
+			fractalFunction = fractalFunctionListSmooth[desc.typeid];
+		else
+			fractalFunction = fractalFunctionList[desc.typeid];
 	}
 
 };
@@ -557,6 +690,8 @@ this.setDesc = function (other) {
     desc.iter = Math.round(other.iter);
   if ('typeid' in other)
     desc.typeid = other.typeid;
+  if ('smooth' in other)
+    desc.smooth = other.smooth;
   if (other.swidth) {
     desc.swidth = other.swidth;
     desc.sheight = other.sheight;
@@ -572,7 +707,7 @@ this.getDesc = function () {
     pixelOnP:desc.pixelOnP,
     swidth:desc.swidth, sheight:desc.sheight,
     pxmin:desc.pxmin, pymin:desc.pymin,
-    typeid:desc.typeid
+    typeid:desc.typeid, smooth:desc.smooth
   };
 };
 
@@ -875,6 +1010,7 @@ var endOfFrame = function() {
 	var iterRange = maxIter-minIter;
 	var fringe10p = engine.getDesc().iter - Math.ceil(iterRange/10);
 	var nbFringe10p = 0;
+  //console.log(minIter, maxIter, iterRange +"/"+ engine.getDesc().iter, nbInSet, fringe10p)
 	for (ti in tiles) {
 		tile = tiles[ti];
 		for (i=0; i<tile.frame.length; i++) {
@@ -887,6 +1023,7 @@ var endOfFrame = function() {
 	}
 	var percInSet = 100.0*nbInSet/nb;
  	var percFringe10p = 100.0*nbFringe10p/nbInSet;
+  //console.log(nbFringe10p, percInSet, percFringe10p)
 	if (percInSet > 1 && percFringe10p>1) {
 		that.setFractalDesc({iter:engine.getDesc().iter*1.5});
 		that.draw();
@@ -1012,14 +1149,16 @@ var events = fractal.events;
  * --bytes ------ array -------------	usage --------------------
  *   0,1          Uint16Array[0]		version of hash
  *   2,3          Uint16Array[1]		number of iterations
- *   4            Uint8Array[4]	        type of fractal
- *   5            Uint8Array[5]	        type of gradient
+ *   4            Uint8Array[4]	    type of fractal
+ *   5            Uint8Array[5]	    type of gradient
  *   6,7          Uint16Array[3]		color offset (times 10000)
  *   8-15         Float64Array[1]		x
  *   16-23        Float64Array[2]		y
  *   24-31        Float64Array[3]		w (extent)
  *   32-35        Float32Array[8]		color density (if present, 20 if not)
- *   36-39        reserved
+ *   36           Uint8Array[36]    flags (if present, 0 if not)
+ *                                  0x00000001 : smooth shading
+ *   37-39        reserved
  */
 var updateUrl = function() {
 	var desc = fractal.getFractalDesc();
@@ -1039,6 +1178,8 @@ var updateUrl = function() {
 	doubleArray[2] = desc.y;
 	doubleArray[3] = desc.w;
 	floatArray[8] = color.density;
+	var flags = desc.smooth?1:0;
+	byteArray[36] = flags;
 	// encode as base64 and put in the URL
 	// https://stackoverflow.com/questions/9267899/arraybuffer-to-base64-encoded-string/11562550#11562550
 	var base64String = btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)));
@@ -1178,19 +1319,21 @@ this.readUrl = function() {
 			var doubleArray = new Float64Array(buffer);
 			var floatArray = new Float32Array(buffer);
 
+			var flags = byteArray[36];
 			var desc = {
 				x:doubleArray[1],
 				y:doubleArray[2],
 				w:doubleArray[3],
 				iter:intArray[1],
 				typeid:byteArray[4],
+				smooth:flags&0x1==1
 			};
 
 			var color = {
 				offset:intArray[3]/10000.0,
 				density:byteArray.length>32?floatArray[8]:20,
 				typeid:byteArray[5],
-				resolution:1000, 
+				resolution:1000,
 				buffer:FractalJS.Colormapbuilder().fromId(1000, byteArray[5]),
 			};
 
