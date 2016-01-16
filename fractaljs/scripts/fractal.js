@@ -1265,7 +1265,7 @@ if (params.mouseControl) {
 		c = fractal.getFractalDesc(c);
 	    var vector = {sx:mousex,sy:mousey};
 
-	    if(delta > 0) {
+	    if(delta < 0) {
 	        c.w /= zoomFactor;
 			c.x -= pax / zoomFactor;
 			c.y -= pay / zoomFactor;
