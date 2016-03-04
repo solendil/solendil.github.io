@@ -1,11 +1,12 @@
+function doSomething ( values, handle, unencoded, tap ) {
+	// values: Current slider values;
+	// handle: Handle that caused the event;
+	// unencoded: Slider values without formatting;
+	// tap: Event was caused by the user tapping the slider (bool);
+}
+
 // Binding signature
-slider.noUiSlider.on(eventName, function (
-	values, // Current slider values
-	handle, // Handle that caused the event
-	unencodedValues // Slider values without formatting.
-	){
-		// code
-	});
+slider.noUiSlider.on(eventName, doSomething);
 
 // Binding namespaced events
 slider.noUiSlider.on('set.one', function(){});

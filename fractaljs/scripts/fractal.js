@@ -10,7 +10,7 @@ window.FractalJS = window.FractalJS || {};
 FractalJS.util = (function(){
 "use strict";
 
-//-------- polyfills 
+//-------- polyfills
 
 Math.trunc = Math.trunc || function(x) {
   return x < 0 ? Math.ceil(x) : Math.floor(x);
@@ -25,7 +25,7 @@ if (typeof String.prototype.startsWith != 'function') {
 if ("performance" in window === false) {
 	window.performance = {};
 }
-  
+
 // https://gist.github.com/paulirish/5438650
 if ("now" in window.performance === false){
 	var nowOffset = Date.now();
@@ -40,7 +40,7 @@ if ("now" in window.performance === false){
 //-------- private functions
 
 var toHex2 = function(number) {
-	if (number<0 || number>255) 
+	if (number<0 || number>255)
 		throw "Number is out of range";
 	if (number<16)
 		return "0" + number.toString(16);
@@ -65,7 +65,7 @@ return {
 /* jshint ignore:start */
 createInterpolant: function(xs, ys) {
 	var i, length = xs.length;
-	
+
 	// Deal with length issues
 	if (length != ys.length) { throw 'Need an equal count of xs and ys.'; }
 	if (length === 0) { return function(x) { return 0; }; }
@@ -75,7 +75,7 @@ createInterpolant: function(xs, ys) {
 		var result = +ys[0];
 		return function(x) { return result; };
 	}
-	
+
 	// Rearrange xs and ys so that xs is sorted
 	var indexes = [];
 	for (i = 0; i < length; i++) { indexes.push(i); }
@@ -85,14 +85,14 @@ createInterpolant: function(xs, ys) {
 	xs = []; ys = [];
 	// Impl: Unary plus properly converts values to numbers
 	for (i = 0; i < length; i++) { xs.push(+oldXs[indexes[i]]); ys.push(+oldYs[indexes[i]]); }
-	
+
 	// Get consecutive differences and slopes
 	var dys = [], dxs = [], ms = [];
 	for (i = 0; i < length - 1; i++) {
 		var dx = xs[i + 1] - xs[i], dy = ys[i + 1] - ys[i];
 		dxs.push(dx); dys.push(dy); ms.push(dy/dx);
 	}
-	
+
 	// Get degree-1 coefficients
 	var c1s = [ms[0]];
 	for (i = 0; i < dxs.length - 1; i++) {
@@ -105,20 +105,20 @@ createInterpolant: function(xs, ys) {
 		}
 	}
 	c1s.push(ms[ms.length - 1]);
-	
+
 	// Get degree-2 and degree-3 coefficients
 	var c2s = [], c3s = [];
 	for (i = 0; i < c1s.length - 1; i++) {
 		var c1 = c1s[i], m = ms[i], invDx = 1/dxs[i], common = c1 + c1s[i + 1] - m - m;
 		c2s.push((m - c1 - common)*invDx); c3s.push(common*invDx*invDx);
 	}
-	
+
 	// Return interpolant function
 	return function(x) {
 		// The rightmost point in the dataset should give an exact result
 		var i = xs.length - 1;
 		if (x == xs[i]) { return ys[i]; }
-		
+
 		// Search for the interval x is in, returning the corresponding y if x is one of the original xs
 		var low = 0, mid, high = c3s.length - 1;
 		while (low <= high) {
@@ -129,7 +129,7 @@ createInterpolant: function(xs, ys) {
 			else { return ys[mid]; }
 		}
 		i = Math.max(0, high);
-		
+
 		// Interpolate
 		var diff = x - xs[i], diffSq = diff*diff;
 		return ys[i] + c1s[i]*diff + c2s[i]*diffSq + c3s[i]*diff*diffSq;
@@ -192,6 +192,12 @@ getHashColor: function(r, g, b) {
 		return "#" + toHex2(r) + toHex2(g) + toHex2(b);
 },
 
+epsilonEquals: function(v1, v2, epsilon) {
+	if (!epsilon)
+		epsilon=1e-15;
+	return Math.abs(v1-v2)<epsilon;
+},
+
 // http://stackoverflow.com/questions/21797299/convert-base64-string-to-arraybuffer
 base64ToArrayBuffer: function (base64) {
     var binary_string =  window.atob(base64);
@@ -201,14 +207,143 @@ base64ToArrayBuffer: function (base64) {
         bytes[i] = binary_string.charCodeAt(i);
     }
     return bytes.buffer;
+},
+
+
+Matrix: function(a,b,c,d,e,f) {
+	var Matrix = FractalJS.util.Matrix;
+    if (f===undefined) {
+      this.a = 1; this.c = 0; this.e = 0;
+      this.b = 0; this.d = 1; this.f = 0;
+    } else {
+      this.a = a; this.c = c; this.e = e;
+      this.b = b; this.d = d; this.f = f;
+    }
+    this.isInvertible = function() {
+      var deter = this.a * this.d - this.b * this.c;
+      return Math.abs(deter)>1e-15;
+    };
+    this.inverseGaussJordan = function() {
+		function gje(M,c1i,c2i,f) {
+			var c1 = M[c1i];
+			var c2 = M[c2i];
+			for (var i=0; i<6; i++) {
+				// console.log("multiply factor", f, "by member", c2[i])
+				c1[i] += c2[i] * f;
+			}
+		}
+		function gjet(M,c1i,f) {
+			var c1 = M[c1i];
+			for (var i=0; i<6; i++) {
+				// console.log("multiply factor", f, "by member", c1[i], "res", c1[i] * f)
+				c1[i] = c1[i] * f;
+			}
+		}
+		var M = [[a,c,e,1,0,0],[b,d,f,0,1,0],[0,0,1,0,0,1]];
+		// console.log("START\n"+str(M));
+		gje(M,1,2,-M[1][2]); // c2 = c2 + c3 * -f
+		// console.log("c2=c2-fc3\n"+str(M));
+		gje(M,0,2,-M[0][2]); // c1 = c1 + c3 * -e
+		// console.log("c2=c2-ec3\n"+str(M));
+		gje(M,1,0,-M[1][0]/M[0][0]);
+		// console.log("c2=c2-?c3\n"+str(M));
+		gje(M,0,1,-M[0][1]/M[1][1]);
+		// console.log("c2=c2-?c3\n"+str(M));
+		gjet(M,0,1/M[0][0]);
+		// console.log("c1 norm\n"+str(M));
+		gjet(M,1,1/M[1][1]);
+		// console.log("c1 norm\n"+str(M));
+		return new Matrix(M[0][3],M[1][3],M[0][4],M[1][4],M[0][5],M[1][5]);
+    };
+    this.inverse = function() {
+      if (!this.isInvertible()) {
+      	return this.inverseGaussJordan();
+      } else {
+        var a = this.a, b = this.b, c = this.c, d = this.d, e = this.e, f = this.f;
+        var dt = a * d - b * c;
+        return new Matrix(d/dt, -b/dt, -c/dt, a/dt, (c * f - d * e) / dt, -(a * f - b * e) / dt);
+      }
+    };
+    this.multiply = function(o) {
+      return new Matrix(
+        this.a * o.a + this.c * o.b,
+    		this.b * o.a + this.d * o.b,
+    		this.a * o.c + this.c * o.d,
+    		this.b * o.c + this.d * o.d,
+    		this.a * o.e + this.c * o.f + this.e,
+    		this.b * o.e + this.d * o.f + this.f
+      );
+    };
+    this.rotate = function(angle) {
+      var cos = Math.cos(angle), sin = Math.sin(angle);
+      return this.multiply(new Matrix(cos, sin, -sin, cos, 0, 0));
+    };
+    this.isIdentity = function() {
+      return this.a==1 && this.b===0 && this.c===0 && this.d==1 && this.e===0 && this.f===0;
+    };
+    this.clone = function(angle) {
+      return new Matrix(this.a, this.b, this.c, this.d, this.e, this.f);
+    };
+    this.applyTo = function(x, y) {
+      return {
+        x: x * this.a + y * this.c + this.e,
+        y: x * this.b + y * this.d + this.f
+      };
+    };
+    // this method is used to pass a matrix to a worker
+    this.params = function() {
+      return {a:a,b:b,c:c,d:d,e:e,f:f};
+    };
 }
 
 };
 
-})();;/*
- * Event center of the Fractal engine, allows components to send or 
+})();
+
+// add static method to matrix
+FractalJS.util.Matrix.GetTriangleToTriangle = function(t1px, t1py, t1qx, t1qy, t1rx, t1ry, t2px, t2py, t2qx, t2qy, t2rx, t2ry) {
+  var STD2T1 = new FractalJS.util.Matrix(t1px-t1rx, t1py-t1ry, t1qx-t1rx, t1qy-t1ry, t1rx, t1ry);
+  var STD2T2 = new FractalJS.util.Matrix(t2px-t2rx, t2py-t2ry, t2qx-t2rx, t2qy-t2ry, t2rx, t2ry);
+  var T12STD = STD2T1.inverse();
+  return STD2T2.multiply(T12STD);
+};
+
+// add static method to matrix
+FractalJS.util.Matrix.GetRotationMatrix = function(angle) {
+  var cos = Math.cos(angle), sin = Math.sin(angle);
+  return new FractalJS.util.Matrix(cos, sin, -sin, cos, 0, 0);
+};
+
+// add static method to matrix
+FractalJS.util.Matrix.GetScaleMatrix = function(x, y) {
+ 	return new FractalJS.util.Matrix(x, 0, 0, y, 0, 0);
+};
+
+// add static method to matrix
+FractalJS.util.Matrix.GetShearMatrix = function(x, y) {
+ 	return new FractalJS.util.Matrix(1, y, x, 1, 0, 0);
+};
+
+// add static method to matrix
+FractalJS.util.Matrix.Identity = function(scale) {
+  return new FractalJS.util.Matrix(1, 0, 0, 1, 0, 0);
+};
+
+;/*
+ * Event center of the Fractal engine, allows components to send or
  * subscribe to events.
  */
+
+/*
+List of events :
+
+frame.end
+	Sent by the renderer when a frame is finished drawing. This event is generated for every quality.
+
+
+
+*/
+
 FractalJS.Events = function(){
 "use strict";
 
@@ -219,7 +354,7 @@ var listeners = {};
 var callbackHelp = function(cblist, _param) {
 	if(cblist.length>0) {
 		var param = _param;
-		if (typeof(_param) === "function") 
+		if (typeof(_param) === "function")
 			param = _param();
 		for(var cb in cblist) {
 			cblist[cb](param);
@@ -232,7 +367,7 @@ return {
 on: function(_event, callback) {
 	// events can be a single event or a list
 	var events = _event;
-	if (_event.constructor !== Array) 
+	if (_event.constructor !== Array)
 		events = [_event];
 
 	for (var i in events) {
@@ -251,7 +386,7 @@ send: function(_event, _param) {
 		events = [_event];
 	// param can be a single object or a function to be called
 	var param = _param;
-	if (typeof(_param) === "function") 
+	if (typeof(_param) === "function")
 		param = _param();
 
 	var cblist = [];
@@ -267,6 +402,271 @@ send: function(_event, _param) {
 }
 
 };
+
+};
+;/*
+ * The camera projects screen space on complex space and vice-versa
+ */
+FractalJS.Camera = function(){
+  "use strict";
+
+  var util = FractalJS.util;
+
+  var matrix = null;
+  var cam = this; //javascript and "this"... sigh...
+
+  this.width = 100;
+  this.height = 100;
+  this.x = 0;
+  this.y = 0;
+  this.w = 0;
+  this.pixelOnP = 0;
+  this.viewportMatrix = util.Matrix.Identity();
+
+  var getScreenToSquareMatrix = function(width, height) {
+    var p = cam.viewportMatrix.applyTo(1,-1);
+    var q = cam.viewportMatrix.applyTo(-1,1);
+    var r = cam.viewportMatrix.applyTo(-1,-1);
+
+    if (width >= height) {
+      var x1=(width-height)/2, x2=x1+height;
+      return util.Matrix.GetTriangleToTriangle(x2,height,x1,0,x1,height,p.x,p.y,q.x,q.y,r.x,r.y);
+    } else {
+      var y1=(height-width)/2, y2=y1+width;
+      return util.Matrix.GetTriangleToTriangle(width,y2,0,y1,0,y2,p.x,p.y,q.x,q.y,r.x,r.y);
+    }
+  };
+
+  var getSquareToComplexMatrix = function(x, y, w) {
+    return util.Matrix.GetTriangleToTriangle(1,0,0,1,0,0,x+w/2,y,x,y+w/2,x,y);
+  };
+
+  // project is called whenever the camera changes; it computes new projection parameters
+  this.project = function() {
+    // precision limit is ten times the nb of pixels times double precision
+    var extent = Math.min(this.width, this.height);
+    var limit = extent*1.11e-15;
+    if (this.w<limit)
+      this.w = limit;
+    this.pixelOnP = this.w/extent;
+
+    // matrix stuff
+    var S2Q = getScreenToSquareMatrix(this.width,this.height);
+    var Q2C = getSquareToComplexMatrix(this.x,this.y,this.w);
+    matrix = Q2C.multiply(S2Q);
+  };
+
+  this.setSize = function(width, height) {
+    this.width = width;
+    this.height = height;
+    this.project();
+  };
+
+  this.transformViewport = function(type, value) {
+    var m;
+    if (type=="rotate")
+      m = util.Matrix.GetRotationMatrix(value);
+    else if (type=="scaleX")
+      m = util.Matrix.GetScaleMatrix(value,1);
+    else if (type=="scaleY")
+      m = util.Matrix.GetScaleMatrix(1, value);
+    else if (type=="shearX")
+      m = util.Matrix.GetShearMatrix(value,0);
+    else if (type=="shearY")
+      m = util.Matrix.GetShearMatrix(0, value);
+    else
+      throw "what? " + type;
+    this.viewportMatrix = this.viewportMatrix.multiply(m);
+    this.project();
+    return util.Matrix.GetScaleMatrix(0,-1).multiply(m.inverse());
+  };
+
+  this.resetViewport = function(type, value) {
+    this.viewportMatrix = util.Matrix.Identity();
+    this.project();
+  };
+
+  this.setXYW = function(x,y,w) {
+    this.x = x;
+    this.y = y;
+    if (w) this.w = w;
+    this.project();
+  };
+
+  this.S2C = function(x,y) {
+    return matrix.applyTo(x,y);
+  };
+
+  this.C2S = function(x,y) {
+    return matrix.inverse().applyTo(x,y);
+  };
+
+  // returns a serialisable object
+  this.getWorkerModel = function() {
+    return {pixelOnP:this.pixelOnP,
+            a:matrix.a, b:matrix.b, c:matrix.c, d:matrix.d, e:matrix.e, f:matrix.f};
+  };
+
+  this.clone = function() {
+    var res = new FractalJS.Camera();
+    res.width    = this.width;
+    res.height   = this.height;
+    res.x        = this.x;
+    res.y        = this.y;
+    res.w        = this.w;
+    res.angle    = this.angle;
+    res.scaleX   = this.scaleX;
+    res.viewportMatrix   = this.viewportMatrix.clone();
+    res.project();
+    return res;
+  };
+
+};
+;/*
+ * The Model of the fractal engine, ie the central place where data is
+ * stored and shared between components.
+ */
+FractalJS.Model = function(canvas){
+"use strict";
+
+	this.canvas = canvas;
+	this.camera = new FractalJS.Camera();
+	this.camera.setSize(canvas.width, canvas.height);
+
+	this.resize = function() {
+		this.camera.setSize(this.canvas.width, this.canvas.height);
+	};
+
+	this.getWorkerModel = function() {
+		var res = this.camera.getWorkerModel();
+		res.smooth = this.smooth;
+		res.typeId = this.typeId;
+		res.iter   = this.iter;
+		return res;
+	};
+
+	this.setFractalDesc = function (desc) {
+		if ("x" in desc)
+			this.camera.setXYW(desc.x, desc.y, desc.w);
+		if ("iter" in desc)
+			this.iter = desc.iter;
+		if ("typeId" in desc)
+			this.typeId = desc.typeId;
+		if ("smooth" in desc)
+			this.smooth = desc.smooth;
+		if ("angle" in desc || "scaleX" in desc )
+			this.camera.setViewport(desc.angle, desc.scaleX);
+		if ("viewport" in desc && desc.viewport !== undefined) {
+			this.camera.viewportMatrix = desc.viewport;
+			this.camera.project();
+		}
+	};
+
+};
+;/*
+* The camera projects screen space on complex space and vice-versa
+*/
+FractalJS.Url = function(model, fractal){
+"use strict";
+
+	var util = FractalJS.util;
+
+	this.update = function() {
+		try {
+			var args = [];
+			var color = fractal.getColorDesc();
+			args.push(["t",model.typeId]);
+			args.push(["x",model.camera.x]);
+			args.push(["y",model.camera.y]);
+			args.push(["w",model.camera.w]);
+			args.push(["i",model.iter]);
+			args.push(["fs",model.smooth?1:0]);
+			args.push(["ct",color.typeId]);
+			args.push(["co",color.offset*100]);
+			args.push(["cd",+color.density.toFixed(2)]);
+			if (!model.camera.viewportMatrix.isIdentity()) {
+				args.push(["va",model.camera.viewportMatrix.a.toFixed(4)]);
+				args.push(["vb",model.camera.viewportMatrix.b.toFixed(4)]);
+				args.push(["vc",model.camera.viewportMatrix.c.toFixed(4)]);
+				args.push(["vd",model.camera.viewportMatrix.d.toFixed(4)]);
+			}
+			var str = "";
+			for (var i in args) {
+				var arg = args[i];
+				str += "&" + arg[0] + "_" + arg[1];
+			}
+			history.replaceState("", "", "#B"+str.substr(1));
+		} catch(e) {
+			console.error("Could not set URL");
+			console.error(e);
+		}
+	};
+
+	this.read = function() {
+	var desc, color;
+	try {
+		var url = document.location.hash;
+		if (url.startsWith("#A")) {
+			var base64String = url.substr(2);
+			base64String = base64String.split("*").join("/");
+			base64String = base64String.split("_").join("=");
+			var buffer = FractalJS.util.base64ToArrayBuffer(base64String);
+			var byteArray = new Uint8Array(buffer);
+			var intArray = new Uint16Array(buffer);
+			var doubleArray = new Float64Array(buffer);
+			var floatArray = new Float32Array(buffer);
+			var flags = byteArray[36];
+			desc = {
+				x:doubleArray[1],
+				y:-doubleArray[2],
+				w:doubleArray[3],
+				iter:intArray[1],
+				typeId:byteArray[4],
+				smooth:flags&0x1==1
+			};
+			color = {
+				offset:intArray[3]/10000.0,
+				density:byteArray.length>32?floatArray[8]:20,
+				typeId:byteArray[5],
+				resolution:1000,
+				buffer:FractalJS.Colormapbuilder().fromId(1000, byteArray[5]),
+			};
+			return [desc,color];
+		} else if (url.startsWith("#B")) {
+			var str = url.substr(2);
+			var tuples = str.split("&");
+			var map = {};
+			for (var i in tuples) {
+				var tuple = tuples[i].split("_");
+				map[tuple[0]] = tuple[1];
+			}
+			desc = {
+				x:parseFloat(map.x),
+				y:parseFloat(map.y),
+				w:parseFloat(map.w),
+				iter:parseInt(map.i),
+				typeId:parseInt(map.t),
+				smooth:map.fs==1,
+			};
+			if ("va" in map) {
+				desc.viewport = new util.Matrix(parseFloat(map.va),parseFloat(map.vb),
+					parseFloat(map.vc),parseFloat(map.vd),0,0);
+			}
+			color = {
+				offset:parseInt(map.co)/100.0,
+				density:parseFloat(map.cd),
+				typeId:parseInt(map.ct),
+				resolution:1000,
+				buffer:FractalJS.Colormapbuilder().fromId(1000, parseInt(map.ct)),
+			};
+			return [desc,color];
+		}
+	} catch(e) {
+		console.error("Could not read URL");
+		console.error(e);
+	} finally {}
+	};
+
 
 };;/*
  * The fractal engine:
@@ -292,11 +692,7 @@ var engine = (function() {
 //-------- private members
 
 var escape = 4;	// square of escape distance
-
-var typeid;		// type of fractal
 var fractalFunction;	// the fractal function used
-
-var desc;
 
 //-------- private methds
 
@@ -307,13 +703,13 @@ var iLog3 = 1.0 / Math.log(3.0);
 var fractalFunctionListSmooth = {
 	0 : function(cx,cy) {
 		var znx=0, zny=0, sqx=0, sqy=0, i=0, j=0;
-		for(;i<desc.iter && sqx+sqy<=escape; ++i) {
+		for(;i<iter && sqx+sqy<=escape; ++i) {
 			zny = (znx+znx)*zny + cy;
 			znx = sqx-sqy + cx;
 			sqx = znx*znx;
 			sqy = zny*zny;
 		}
-		if (i==desc.iter) return i;
+		if (i==iter) return i;
 		for(j=0;j<4; ++j) {
 			zny = (znx+znx)*zny + cy;
 			znx = sqx-sqy + cx;
@@ -331,14 +727,14 @@ var fractalFunctionListSmooth = {
 			zny = 3*sqx*zy-sqy*zy+cy;
 			zx = znx;
 			zy = zny;
-			if (++i>=desc.iter)
+			if (++i>=iter)
 				break;
 			sqx = zx*zx;
 			sqy = zy*zy;
 			if (sqx+sqy>escape)
 				break;
 		}
-		if (i==desc.iter) return i;
+		if (i==iter) return i;
 		for(j=0;j<4; ++j) {
 			znx = sqx*zx-3*zx*sqy+cx;
 			zny = 3*sqx*zy-sqy*zy+cy;
@@ -352,20 +748,21 @@ var fractalFunctionListSmooth = {
 	},
 	// burningship
 	2 : function(cx,cy) {
+		cy = -cy; // this fractal is usually represented upside down
 		var zx=0, zy=0, sqx=0, sqy=0, i=0, znx, zny;
 		while (true) {
 			zny = (zx+zx)*zy+cy;
 			znx = sqx-sqy+cx;
 			zx = Math.abs(znx);
 			zy = Math.abs(zny);
-			if (++i>=desc.iter)
+			if (++i>=iter)
 				break;
 			sqx = zx*zx;
 			sqy = zy*zy;
 			if (sqx+sqy>escape)
 				break;
 		}
-		if (i==desc.iter) return i;
+		if (i==iter) return i;
 		for(j=0;j<4; ++j) {
 			zny = (zx+zx)*zy+cy;
 			znx = sqx-sqy+cx;
@@ -380,7 +777,7 @@ var fractalFunctionListSmooth = {
 	// tippetts
 	3 : function(cx,cy) {
 		var zx=0, zy=0, sqx=0, sqy=0, i=0;
-		for(;i<desc.iter && sqx+sqy<=escape; ++i) {
+		for(;i<iter && sqx+sqy<=escape; ++i) {
 			zx = sqx-sqy+cx;
 			zy = (zx+zx)*zy+cy;
 			sqx = zx*zx;
@@ -391,13 +788,13 @@ var fractalFunctionListSmooth = {
 	// Julia Set A
 	4 : function(cx,cy) {
 		var znx=cx, zny=cy, sqx=cx*cx, sqy=cy*cy, i=0, j=0;
-		for(;i<desc.iter && sqx+sqy<=escape; ++i) {
+		for(;i<iter && sqx+sqy<=escape; ++i) {
 			zny = (znx+znx)*zny + 0.15;
 			znx = sqx-sqy -0.79;
 			sqx = znx*znx;
 			sqy = zny*zny;
 		}
-		if (i==desc.iter) return i;
+		if (i==iter) return i;
 		for(j=0;j<4; ++j) {
 			zny = (znx+znx)*zny + 0.15;
 			znx = sqx-sqy -0.79;
@@ -412,7 +809,7 @@ var fractalFunctionListSmooth = {
 		var x=-cy, y=cx, xm1=0, ym1=0;
 		var sx=0, sy=0, i=0;
 		var c=0.5667, p=-0.5;
-		for(;i<desc.iter && sx+sy<=escape; ++i) {
+		for(;i<iter && sx+sy<=escape; ++i) {
 			xp1 = x*x-y*y+c+p*xm1;
 			yp1 = 2*x*y+p*ym1;
 			sx = xp1*xp1;
@@ -420,7 +817,7 @@ var fractalFunctionListSmooth = {
 			xm1=x; ym1=y;
 			x=xp1; y=yp1;
 		}
-		if (i==desc.iter) return i;
+		if (i==iter) return i;
 		for(j=0;j<4; ++j) {
 			xp1 = x*x-y*y+c+p*xm1;
 			yp1 = 2*x*y+p*ym1;
@@ -438,7 +835,7 @@ var fractalFunctionListSmooth = {
 var fractalFunctionList = {
 	'mandelsmooth' : function(cx,cy) {
 		var znx=0, zny=0, sqx=0, sqy=0, i=0, j=0;
-		for(;i<desc.iter && sqx+sqy<=escape; ++i) {
+		for(;i<iter && sqx+sqy<=escape; ++i) {
 			zny = (znx+znx)*zny + cy;
 			znx = sqx-sqy + cx;
 			sqx = znx*znx;
@@ -458,7 +855,7 @@ var fractalFunctionList = {
 	// mandelbrot
 	0 : function(cx,cy) {
 		var znx=0, zny=0, sqx=0, sqy=0, i=0, j=0;
-		for(;i<desc.iter && sqx+sqy<=escape; ++i) {
+		for(;i<iter && sqx+sqy<=escape; ++i) {
 			zny = (znx+znx)*zny + cy;
 			znx = sqx-sqy + cx;
 			sqx = znx*znx;
@@ -474,7 +871,7 @@ var fractalFunctionList = {
 			zny = 3*sqx*zy-sqy*zy+cy;
 			zx = znx;
 			zy = zny;
-			if (++i>=desc.iter)
+			if (++i>=iter)
 				break;
 			sqx = zx*zx;
 			sqy = zy*zy;
@@ -485,13 +882,14 @@ var fractalFunctionList = {
 	},
 	// burningship
 	2 : function(cx,cy) {
+		cy = -cy; // this fractal is usually represented upside down
 		var zx=0, zy=0, sqx=0, sqy=0, i=0, znx, zny;
 		while (true) {
 			zny = (zx+zx)*zy+cy;
 			znx = sqx-sqy+cx;
 			zx = Math.abs(znx);
 			zy = Math.abs(zny);
-			if (++i>=desc.iter)
+			if (++i>=iter)
 				break;
 			sqx = zx*zx;
 			sqy = zy*zy;
@@ -503,7 +901,7 @@ var fractalFunctionList = {
 	// tippetts
 	3 : function(cx,cy) {
 		var zx=0, zy=0, sqx=0, sqy=0, i=0;
-		for(;i<desc.iter && sqx+sqy<=escape; ++i) {
+		for(;i<iter && sqx+sqy<=escape; ++i) {
 			zx = sqx-sqy+cx;
 			zy = (zx+zx)*zy+cy;
 			sqx = zx*zx;
@@ -514,7 +912,7 @@ var fractalFunctionList = {
 	// Julia Set A
 	4 : function(cx,cy) {
 		var znx=cx, zny=cy, sqx=cx*cx, sqy=cy*cy, i=0, j=0;
-		for(;i<desc.iter && sqx+sqy<=escape; ++i) {
+		for(;i<iter && sqx+sqy<=escape; ++i) {
 			zny = (znx+znx)*zny + 0.15;
 			znx = sqx-sqy -0.79;
 			sqx = znx*znx;
@@ -527,7 +925,7 @@ var fractalFunctionList = {
 		var x=-cy, y=cx, xm1=0, ym1=0;
 		var sx=0, sy=0, i=0;
 		var c=0.5667, p=-0.5;
-		for(;i<desc.iter && sx+sy<=escape; ++i) {
+		for(;i<iter && sx+sy<=escape; ++i) {
 			xp1 = x*x-y*y+c+p*xm1;
 			yp1 = 2*x*y+p*ym1;
 			sx = xp1*xp1;
@@ -543,75 +941,80 @@ var fractalFunctionList = {
 
 return {
 
-drawTileOnBuffer: function(tile) {
-	//console.log("draw", tile, desc)
-	//console.log(fractalFunction)
+drawTileOnBuffer: function(tile, model) {
 	var frame = tile.frame;
-	var py = desc.pymin+tile.y1*desc.pixelOnP;
 	var dx = 0;
 	for (var sy=tile.y1; sy<=tile.y2; sy++) {
-		var px = desc.pxmin+tile.x1*desc.pixelOnP;
 		for (var sx=tile.x1; sx<=tile.x2; sx++) {
+			var px = sx * model.a + sy * model.c + model.e;
+			var py = sx * model.b + sy * model.d + model.f;
 			var piter = fractalFunction(px, py);
-			if (piter==desc.iter)
+			if (piter==iter)
 				frame[dx++] = 0;
 			else
 				frame[dx++] = piter;
-			px += desc.pixelOnP;
 		}
-		py += desc.pixelOnP;
 	}
 },
 
-drawSuperTileOnBuffer: function(tile) {
-	var sss = desc.pixelOnP/4;
+// subsampling with a regular 4*4 grid
+drawSuperTileOnBuffer: function(tile, model) {
+	var sss = model.pixelOnP/4;
 	var frame = tile.frame;
-	var py = desc.pymin+tile.y1*desc.pixelOnP;
 	var dx = 0;
 	for (var sy=tile.y1; sy<=tile.y2; sy++) {
-		var px = desc.pxmin+tile.x1*desc.pixelOnP;
 		for (var sx=tile.x1; sx<=tile.x2; sx++) {
+			var px = sx * model.a + sy * model.c + model.e - model.pixelOnP/2;
+			var py = sx * model.b + sy * model.d + model.f - model.pixelOnP/2;
 			var itersum = 0;
 			for (var ss=0; ss<16; ss++) {
 				itersum += fractalFunction(px+(ss/4*sss), py+(ss%4*sss));
 			}
 			var piter = itersum/16;
-			frame[dx++] = piter==desc.iter?0:piter;
-			px += desc.pixelOnP;
+			frame[dx++] = piter==iter?0:piter;
 		}
-		py += desc.pixelOnP;
 	}
 },
 
-drawSubTileOnBuffer: function(tile) {
-	var res=4;
-	var py = desc.pymin+(tile.y1+res/2)*desc.pixelOnP;
-	var index = 0;
-	for (var y=0; y<tile.height; y+=res) {
-		var px = desc.pxmin+(tile.x1+res/2)*desc.pixelOnP;
-		var lineindex = index;
-		for (var x=0; x<tile.width; x+=res) {
+drawSubTileOnBuffer: function(tile, model) {
+	var res = 4;
+	var frame = tile.frame;
+	var dx, sx, sy;
+	for (sy=tile.y1; sy<=tile.y2; sy+=res) {
+		dx = (sy-tile.y1)*tile.width;
+		for (sx=tile.x1; sx<=tile.x2; sx+=res) {
+			var px = sx * model.a + sy * model.c + model.e + (res/2)*pixelOnP;
+			var py = sx * model.b + sy * model.d + model.f - (res/2)*pixelOnP;
 			var piter = fractalFunction(px, py);
-			var color = piter==desc.iter?0:piter;
-			for (var sx=0; sx<res && x+sx<tile.width; sx++)
-				tile.frame[index++] = color;
-			px += desc.pixelOnP*res;
+			if (piter==iter)
+				frame[dx] = 0;
+			else
+				frame[dx] = piter;
+			dx+=res;
 		}
-		for (var sy=1; sy<res && y+sy<tile.height; sy++)
-			for (var tx=0; tx<tile.width; tx++)
-				tile.frame[index++] = tile.frame[lineindex+tx];
-		py += desc.pixelOnP*res;
+	}
+	dx = 0;
+	for (sy=0; sy<tile.height; sy++) {
+		for (sx=0; sx<tile.width; sx++) {
+			if (sy%res===0 && sx%res===0) {
+			} else {
+				frame[dx]= frame[(sy-sy%res)*tile.width+sx-sx%res];
+			}
+			dx++;
+		}
 	}
 },
 
-	setDesc: function(other) {
-		desc=other;
-		//console.log("setDesc",desc)
-		if (desc.smooth)
-			fractalFunction = fractalFunctionListSmooth[desc.typeid];
-		else
-			fractalFunction = fractalFunctionList[desc.typeid];
-	}
+setModel: function(model) {
+	pxmin = model.pxmin;
+	pymin = model.pymin;
+	pixelOnP = model.pixelOnP;
+	iter = model.iter;
+	if (model.smooth)
+		fractalFunction = fractalFunctionListSmooth[model.typeId];
+	else
+		fractalFunction = fractalFunctionList[model.typeId];
+}
 
 };
 
@@ -622,14 +1025,12 @@ onmessage = function(param) {
 	var data = param.data;
 	if (!data)
 		console.error(param);
-	if (data.action === "setDesc") {
-		//console.log("receive DESC", param)
-		engine.setDesc(data.desc);
-	} else if (data.action === "draw") {
+	if (data.action === "draw") {
+		engine.setModel(data.model);
 		//console.log("receive DRAW", param)
-		if (data.quality==200) engine.drawTileOnBuffer(data.tile);
-		else if (data.quality==100) engine.drawSubTileOnBuffer(data.tile);
-		else if (data.quality==300) engine.drawSuperTileOnBuffer(data.tile);
+		if (data.quality==200) engine.drawTileOnBuffer(data.tile, data.model);
+		else if (data.quality==100) engine.drawSubTileOnBuffer(data.tile, data.model);
+		else if (data.quality==300) engine.drawSuperTileOnBuffer(data.tile, data.model);
 		else throw "invalid drawing quality";
 		//setTimeout(function() {
 		postMessage({
@@ -639,7 +1040,6 @@ onmessage = function(param) {
 			frameId:param.data.frameId,
 			finished:param.data.finished
 		});
-		//},0);
 	} else {
 		throw "invalid worker message";
 	}
@@ -651,82 +1051,9 @@ onmessage = function(param) {
 return blobURL;
 })();
 ;/*
- * The engine:
- * - knows fractal parameters and perform basic computations on them (pixel ratio, zoom limit, etc...)
- * - instanciates and maintains workers to perform the actual fractal computations
- */
-FractalJS.Engine = function(nbThreads, renderer) {
-"use strict";
-
-var desc = {};
-var workers = [];
-
-var createWorkers = function() {
-  workers.length = 0;
-  for (var i=0; i<nbThreads; i++) {
-    var worker = FractalJS.EngineWorker();
-    workers.push(worker);
-    worker.onmessage=renderer.workerMessage;
-  }
-};
-
-var project = function() {
-  var sminExtent = Math.min(desc.swidth, desc.sheight);
-  // precision limit is ten times the nb of pixels times double precision
-  var limit = sminExtent*1.11e-15;
-  if (desc.w<limit)
-    desc.w = limit;
-  desc.pixelOnP = desc.w/sminExtent;
-  desc.pxmin = desc.x - desc.swidth/2 * desc.pixelOnP;
-  desc.pymin = desc.y - desc.sheight/2 * desc.pixelOnP;
-};
-
-this.eachWorker = function (callback) {
-  for (var w in workers)
-    callback(workers[w]);
-};
-
-this.setDesc = function (other) {
-  if ('x' in other)
-    desc.x = other.x;
-  if ('y' in other)
-    desc.y = other.y;
-  if (other.w)
-    desc.w = other.w;
-  if (other.i)
-    desc.iter = Math.round(other.i);
-  if (other.iter)
-    desc.iter = Math.round(other.iter);
-  if ('typeid' in other)
-    desc.typeid = other.typeid;
-  if ('smooth' in other)
-    desc.smooth = other.smooth;
-  if (other.swidth) {
-    desc.swidth = other.swidth;
-    desc.sheight = other.sheight;
-  }
-  project();
-  for (var w in workers)
-    workers[w].postMessage({action:"setDesc",desc:desc});
-};
-
-this.getDesc = function () {
-  return {
-    x:desc.x, y:desc.y, w:desc.w, iter:desc.iter,
-    pixelOnP:desc.pixelOnP,
-    swidth:desc.swidth, sheight:desc.sheight,
-    pxmin:desc.pxmin, pymin:desc.pymin,
-    typeid:desc.typeid, smooth:desc.smooth
-  };
-};
-
-createWorkers();
-
-};
-;/*
  * The color map:
  * - is an array of colors whose size is the "resolution"
- * - a fractal iteration number is mapped onto this array according to 
+ * - a fractal iteration number is mapped onto this array according to
  *   the "offset" (range [0..1[) and the "density" (range [0.1..10[)
  * - is created from the different palette builders
  */
@@ -739,7 +1066,7 @@ var buffer = new Int32Array(params.buffer);
 var offset = params.offset || 0.0;
 var density = params.density || 20;
 var resolution = buffer.length;
-var typeid = params.typeid;
+var typeId = params.typeId;
 
 //-------- private methds
 
@@ -765,7 +1092,7 @@ getDesc: function() {
 		offset:offset,
 		density:density,
 		buffer:buffer,
-		typeid:typeid,
+		typeId:typeId,
 	};
 },
 
@@ -775,8 +1102,8 @@ setDesc: function(cmap) {
 		offset = cmap.offset;
 	if (cmap.density)
 		density = cmap.density;
-	if (cmap.typeid)
-		typeid = cmap.typeid;
+	if (cmap.typeId)
+		typeId = cmap.typeId;
 	if (cmap.buffer) {
 		buffer = cmap.buffer;
 		resolution = cmap.buffer.length;
@@ -788,7 +1115,7 @@ setDesc: function(cmap) {
 };
 
 
-; FractalJS.Renderer = function(fractal) {
+; FractalJS.Renderer = function(fractal, model) {
 "use strict";
 
 //-------- shortcuts
@@ -827,16 +1154,11 @@ if ("hardwareConcurrency" in navigator) {
 	console.log("FractalJS will use the default " + nbOfThreads + " threads");
 }
 
-var engine;
+var workers = [];
 
 //-------- public methods
 
 this.resize = function() {
-	// send message to workers
-	this.setFractalDesc({
-			swidth: canvas.width,
-			sheight: canvas.height
-		});
 	// resize temp buffers
 	imageData = context.createImageData(canvas.width, canvas.height);
 	idata32 = new Uint32Array(imageData.data.buffer);
@@ -872,14 +1194,6 @@ this.resize = function() {
     }
   }
 };
-
-this.setFractalDesc = function (desc) {
-  engine.setDesc(desc);
-};
-this.getFractalDesc = function () {
-  return engine.getDesc();
-};
-
 
 this.setColorDesc = function(desc) {
 	if (!colormap) {
@@ -923,6 +1237,11 @@ this.draw = function(reason, vector, priovector, quality) {
 	if (vector) {
 		var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 		vectorCanvas.getContext("2d").putImageData(imageData, 0, 0);
+		if (vector.matrix) {
+			context.translate(model.camera.width/2,model.camera.height/2);
+			context.transform(vector.matrix.a, vector.matrix.b, vector.matrix.c, vector.matrix.d, vector.matrix.e, vector.matrix.f);
+			context.translate(-model.camera.width/2,-model.camera.height/2);
+		}
 		context.scale(vector.z, vector.z);
 		context.translate(vector.x, vector.y);
 		context.drawImage(vectorCanvas,0,0);
@@ -975,10 +1294,14 @@ this.draw = function(reason, vector, priovector, quality) {
   });
 
 	// dispatch first items of the drawList to all workers
-  engine.eachWorker(function(w){
-    var drawOrder = drawList.shift();
-		w.postMessage(drawOrder);
-  });
+	for (var w in workers) {
+		var drawOrder = drawList.shift();
+		if (drawOrder) {
+			drawOrder.model = model.getWorkerModel();
+			workers[w].postMessage(drawOrder);
+		}
+	}
+
 };
 
 //-------- private methods
@@ -987,12 +1310,14 @@ var endOfFrame = function() {
 	var endFrameMs = performance.now();
 	events.send("frame.end", function() {
 		return {
-			fractalDesc : engine.getDesc(),
 			time: endFrameMs-startFrameMs,
+			data:{
+				lastquality:lastquality,
+			}
 		};
 	});
-  if (lastquality==300)
-    return;
+	if (lastquality==300)
+		return;
 	// frame is finished; analyze buffer to auto-adjust iteration count
 	// algorithm:
 	// - we compute the percentage of pixels in the set/pixels on the screen
@@ -1019,7 +1344,7 @@ var endOfFrame = function() {
 		}
 	}
 	var iterRange = maxIter-minIter;
-	var fringe10p = engine.getDesc().iter - Math.ceil(iterRange/10);
+	var fringe10p = model.iter - Math.ceil(iterRange/10);
 	var nbFringe10p = 0;
   //console.log(minIter, maxIter, iterRange +"/"+ engine.getDesc().iter, nbInSet, fringe10p)
 	for (ti in tiles) {
@@ -1034,16 +1359,16 @@ var endOfFrame = function() {
 	}
 	var percInSet = 100.0*nbInSet/nb;
  	var percFringe10p = 100.0*nbFringe10p/nbInSet;
-  //console.log(nbFringe10p, percInSet, percFringe10p)
+	//console.log(nbFringe10p, percInSet, percFringe10p)
 	if (percInSet > 1 && percFringe10p>1) {
-		that.setFractalDesc({iter:engine.getDesc().iter*1.5});
+		model.iter = Math.round(model.iter*1.5);
 		that.draw();
 		events.send("iter.change");
 	} else {
     setTimeout(function() {that.refine();},1000);
   }
 	if (percInSet > 1 && percFringe10p<0.2) {
-		that.setFractalDesc({iter:engine.getDesc().iter/1.5});
+		model.iter = Math.round(model.iter/1.5);
 		// public_methods.draw();
 		events.send("iter.change");
 	}
@@ -1106,6 +1431,7 @@ this.workerMessage = function(param) {
 			if (drawList.length===0) {
 				drawOrder.finished=true;
 			}
+      drawOrder.model = model.getWorkerModel();
 			param.target.postMessage(drawOrder);
 		}
 
@@ -1117,7 +1443,12 @@ this.workerMessage = function(param) {
   }
 };
 
- engine = new FractalJS.Engine(nbOfThreads, this);
+for (var i=0; i<nbOfThreads; i++) {
+	var worker = FractalJS.EngineWorker();
+	workers.push(worker);
+	worker.onmessage=this.workerMessage;
+}
+
  this.resize();
 
 };
@@ -1126,155 +1457,138 @@ this.workerMessage = function(param) {
  * - capture events related to the canvas and modify the view accordingly
  * - loads the URL parameters and updates the URL in relatime
  */
-FractalJS.Controller = function(fractal) {
+FractalJS.Controller = function(fractal, model) {
 "use strict";
 
 //-------- private members
 
-var zoomFactor = 1.3;
-
-var isDragging;			// is the user dragging ?
-var dragX, dragY;		// start dragging point
-var dragStartDesc;		// start fractal description
-var ldragX, ldragY;		// last dragging point
+var ZOOM = 1.3;
+var SCALE = 1.1;
+var SHEAR = 0.1;
+var ANGLE = Math.PI/18;
+var PAN = 0.095;
 
 //-------- shortcuts
 
 var canvas = fractal.params.canvas;
 var params = fractal.params.controller;
 var events = fractal.events;
+var camera = model.camera;
 
-//-------- private methods
+//-------- public members
 
-/*
- * If first letter of URL hash is an 'A'
- * Decode rest of hash using base64, build three arrays on the buffer:
- *   Uint8Array, Uint16Array, Float64Array
- * --bytes ------ array -------------	usage --------------------
- *   0,1          Uint16Array[0]		version of hash
- *   2,3          Uint16Array[1]		number of iterations
- *   4            Uint8Array[4]	    type of fractal
- *   5            Uint8Array[5]	    type of gradient
- *   6,7          Uint16Array[3]		color offset (times 10000)
- *   8-15         Float64Array[1]		x
- *   16-23        Float64Array[2]		y
- *   24-31        Float64Array[3]		w (extent)
- *   32-35        Float32Array[8]		color density (if present, 20 if not)
- *   36           Uint8Array[36]    flags (if present, 0 if not)
- *                                  0x00000001 : smooth shading
- *   37-39        reserved
- */
-var updateUrl = function() {
-	var desc = fractal.getFractalDesc();
-	var color = fractal.getColorDesc();
-	// create a buffer and two views on it to store fractal parameters
-	var buffer = new ArrayBuffer(40);
-	var byteArray = new Uint8Array(buffer);
-	var intArray = new Uint16Array(buffer);
-	var doubleArray = new Float64Array(buffer);
-	var floatArray = new Float32Array(buffer);
-	intArray[0] = 1; // version number
-	intArray[1] = desc.iter;
-	byteArray[4] = desc.typeid;
-	byteArray[5] = color.typeid;
-	intArray[3] = color.offset*10000;
-	doubleArray[1] = desc.x;
-	doubleArray[2] = desc.y;
-	doubleArray[3] = desc.w;
-	floatArray[8] = color.density;
-	var flags = desc.smooth?1:0;
-	byteArray[36] = flags;
-	// encode as base64 and put in the URL
-	// https://stackoverflow.com/questions/9267899/arraybuffer-to-base64-encoded-string/11562550#11562550
-	var base64String = btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)));
-	base64String = base64String.split("/").join("*");
-	base64String = base64String.split("=").join("_");
-	history.replaceState("", "", "#A"+base64String);
-	//document.location.hash="A"+base64String;
-	//console.log("Updating URL", {x:desc.x,y:desc.y,w:desc.w,iter:desc.iter});
-};
+this.url = new FractalJS.Url(model, fractal);
 
 //-------- event catchers
 
-var pan = function(x, y) {
-	var desc = fractal.getFractalDesc();
-	var deltax = x*desc.swidth*desc.pixelOnP;
-	var deltay = y*desc.sheight*desc.pixelOnP;
-	fractal.setFractalDesc({x:desc.x-deltax, y:desc.y-deltay}, true);
-	var screenx = x*desc.swidth;
-	var screeny = y*desc.sheight;
-	fractal.draw("user.control",{x:screenx,y:screeny,mvt:"pan"});
+/*
+ * This section of code manipulates a lot of geometry on both the screen space and
+ * complex. Some conventions help to make te code readable:
+ *   v : vector
+ *   p : point
+ *   s : screen space
+ *   c : complex space
+ */
+
+// transforms the viewport
+var transformViewport = function(type, value) {
+	var matrix = model.camera.transformViewport(type, value);
+	fractal.draw("user.control", {matrix:matrix});
 	events.send("user.control");
 };
 
-var zoom = function(x, y, delta) {
-	var startDesc = fractal.getFractalDesc();
-	var c = fractal.getFractalDesc();
+// pan the screen by the given ration of its resolution
+var pan = function(ratiox, ratioy) {
+	var vsx = ratiox * camera.width, vsy = -ratioy * camera.height;
+	var pc1 = camera.S2C(0,0), pc2 = camera.S2C(vsx,vsy); // [pc1,pc2] is the movement vector on C
+	camera.setXYW(camera.x - (pc2.x - pc1.x), camera.y - (pc2.y - pc1.y));
+	fractal.draw("user.control",{x:vsx,y:vsy,mvt:"pan"});
+	events.send("user.control");
+};
 
+// zoom the screen at the given screen point, using the given delta ratio
+var zoom = function(psx, psy, delta) {
 	// test if we're at the maximum possible resolution (1.11e-15/pixel)
-	var sminExtent = Math.min(c.swidth, c.sheight);
-	var limit = sminExtent*1.11e-15;
-	if (c.w<=limit && delta < 0) {
+	var extent = Math.min(camera.width, camera.height);
+	var limit = extent*1.11e-15;
+	if (camera.w<=limit && delta < 0) {
 		events.send("zoom.limit.reached");
 		return;
 	}
 
-	// zoom in place, two steps :
-	// 1) translate complex point under mouse to center
-	// 2) zoom, and translate back by the zoomed vector
-	// should happen in only one step if I could figure out the math :-)
-	var pax = (x - c.swidth/2)*c.pixelOnP;
-	var pay = (y - c.sheight/2)*c.pixelOnP;
-	c.x += pax;
-	c.y += pay;
-	fractal.setFractalDesc(c,true);
-	c = fractal.getFractalDesc(c);
-	var vector = {sx:x,sy:y};
+	var pc00 = camera.S2C(0,0);
+	var pc = camera.S2C(psx,psy);				// complex point under mouse
+	var vc = {x:camera.x-pc.x, y:camera.y-pc.y};   // vector to complex point at center
+	var zoom = delta<0?1/ZOOM:ZOOM;    // zoom multiplicator according to movement
+	camera.setXYW(pc.x+vc.x*zoom, pc.y+vc.y*zoom, camera.w*zoom); // adjust camera using scaled vector
+	var ps00A = camera.C2S(pc00.x,pc00.y);
 
-	if(delta < 0) {
-		c.w /= zoomFactor;
-		c.x -= pax / zoomFactor;
-		c.y -= pay / zoomFactor;
-		vector.z = 1 * zoomFactor;
-		vector.mvt = "zoomin";
-	} else {
-		c.w *= zoomFactor;
-		c.x -= pax * zoomFactor;
-		c.y -= pay * zoomFactor;
-		vector.z = 1 / zoomFactor;
-		vector.mvt = "zoomout";
-	}
-	fractal.setFractalDesc(c, true);
-	var endDesc = fractal.getFractalDesc(c);
-
-	// computes the movement vector, then redraws
-	vector.x = (startDesc.pxmin - endDesc.pxmin) / startDesc.pixelOnP;
-	vector.y = (startDesc.pymin - endDesc.pymin) / startDesc.pixelOnP;
+	var vector = {x:ps00A.x*zoom, y:ps00A.y*zoom, z:1/zoom, mvt:delta<0?"zoomin":"zoomout", sx:psx,sy:psy};
 	fractal.draw("user.control",vector);
 	events.send("user.control");
 };
 
+var keymap = []; // Or you could call it "key"
 
 if (params.keyboardControl) {
-
-	var panRatio = 0.095;
+	document.onkeyup = function(e) {
+	    e = e || window.event;
+	    keymap[e.keyCode] = false;
+	};
 	document.onkeydown = function(e) {
 	    e = e || window.event;
-			console.log(e);
+	    keymap[e.keyCode] = true;
 	    var keyCode = (typeof e.which == "number") ? e.which : e.keyCode;
-			switch (keyCode) {
-				case 107: zoom(canvas.width/2, canvas.height/2, -1); break; // key +, zoom in
-				case 109: zoom(canvas.width/2, canvas.height/2, 1); break;  // key -, zoom out
-				case 37: pan(panRatio, 0); break; // left arrow
-				case 38: pan(0, panRatio); break; // up arrow
-				case 39: pan(-panRatio, 0); break; // right arrow
-				case 40: pan(0, -panRatio); break; // down arrow
-			}
+		switch (keyCode) {
+			case 107: zoom(canvas.width/2, canvas.height/2, -1); break; // key +, zoom in
+			case 109: zoom(canvas.width/2, canvas.height/2, 1); break;  // key -, zoom out
+			case 86 : camera.resetViewport(); break;  // key V, reset viewport
+			case 37: // left arrow
+				if (keymap[82]===true) // R
+					transformViewport("rotate", -ANGLE);
+				else if (keymap[83]===true) // S
+					transformViewport("scaleX", SCALE);
+				else if (keymap[72]===true) // H
+					transformViewport("shearX", SHEAR);
+				else
+					pan(PAN, 0);
+				break;
+			case 39: // right arrow
+				if (keymap[82]===true) // R
+					transformViewport("rotate", ANGLE);
+				else if (keymap[83]===true) // S
+					transformViewport("scaleX", 1/SCALE);
+				else if (keymap[72]===true) // H
+					transformViewport("shearX", -SHEAR);
+				else
+					pan(-PAN, 0);
+				break;
+			case 38: // up arrow
+				if (keymap[83]===true) // S
+					transformViewport("scaleY", 1/SCALE);
+				else if (keymap[72]===true) // H
+					transformViewport("shearY", -SHEAR);
+				else
+					pan(0, -PAN);
+				break;
+			case 40: // down arrow
+				if (keymap[83]===true) // S
+					transformViewport("scaleY", SCALE);
+				else if (keymap[72]===true) // H
+					transformViewport("shearY", SHEAR);
+				else
+					pan(0, PAN);
+				break;
+		}
 	};
-
 }
 
 if (params.mouseControl) {
+
+	var isDragging;			// is the user dragging ?
+	var dragX, dragY;		// start dragging point
+	var ldragX, ldragY;		// last dragging point
+	var camStart;			// start camera
 
 	canvas.onmousedown = function(e) {
 		if (!e) e = window.event;
@@ -1285,7 +1599,7 @@ if (params.mouseControl) {
 		dragY = ldragY = e.screenY;
 		if (e.button !== 0)
 			return;
-		dragStartDesc = fractal.getFractalDesc();
+		camStart = model.camera.clone();
 	};
 
 	window.addEventListener("mouseup", function(e) {
@@ -1296,17 +1610,13 @@ if (params.mouseControl) {
 	window.addEventListener("mousemove", function(e) {
 		if (!e) e = window.event;
 		if (isDragging) {
-			var vecx = e.screenX-dragX;
-			var vecy = e.screenY-dragY;
-			var vecpx = vecx*dragStartDesc.pixelOnP;
-			var vecpy = vecy*dragStartDesc.pixelOnP;
-			var c = {x:dragStartDesc.x-vecpx, y:dragStartDesc.y-vecpy};
-			fractal.setFractalDesc(c, true);
-
-			var vfx = e.screenX - ldragX;
-			var vfy = e.screenY - ldragY;
-			var vector = {x:vfx,y:vfy,mvt:"pan"};
-			fractal.draw("user.control",vector);
+			var vsx = e.screenX - dragX; // since beginning
+			var vsy = e.screenY - dragY;
+			var pc1 = camStart.S2C(0,0), pc2 = camStart.S2C(vsx,vsy); // [pc1,pc2] is the movement vector on C
+			camera.setXYW(camStart.x - (pc2.x - pc1.x), camStart.y - (pc2.y - pc1.y));
+			var vsxr = e.screenX - ldragX; // relative to last frame
+			var vsyr = e.screenY - ldragY;
+			fractal.draw("user.control",{x:vsxr,y:vsyr,mvt:"pan"});
 			events.send("user.control");
 			ldragX = e.screenX;
 			ldragY = e.screenY;
@@ -1331,6 +1641,7 @@ if (params.mouseControl) {
 if (params.fitToWindow) {
 	canvas.width = window.innerWidth;
 	canvas.height = window.innerHeight;
+	model.resize();
 	window.onresize = function() {
 		canvas.width = window.innerWidth;
 		canvas.height = window.innerHeight;
@@ -1339,53 +1650,11 @@ if (params.fitToWindow) {
 	};
 }
 
-//-------- public methods
-
-this.readUrl = function() {
-	try {
-		var url = document.location.hash;
-		if (url.startsWith("#A")) {
-			var base64String = url.substr(2);
-			base64String = base64String.split("*").join("/");
-			base64String = base64String.split("_").join("=");
-
-			var buffer = FractalJS.util.base64ToArrayBuffer(base64String);
-			var byteArray = new Uint8Array(buffer);
-			var intArray = new Uint16Array(buffer);
-			var doubleArray = new Float64Array(buffer);
-			var floatArray = new Float32Array(buffer);
-
-			var flags = byteArray[36];
-			var desc = {
-				x:doubleArray[1],
-				y:doubleArray[2],
-				w:doubleArray[3],
-				iter:intArray[1],
-				typeid:byteArray[4],
-				smooth:flags&0x1==1
-			};
-
-			var color = {
-				offset:intArray[3]/10000.0,
-				density:byteArray.length>32?floatArray[8]:20,
-				typeid:byteArray[5],
-				resolution:1000,
-				buffer:FractalJS.Colormapbuilder().fromId(1000, byteArray[5]),
-			};
-
-			return [desc,color];
-		}
-	} catch(e) {
-		console.error("Could not read URL");
-		console.error(e);
-	}
-};
-
 //-------- constructor & jquery callbacks
 
-events.on("iter.change", updateUrl);
-events.on("user.control", updateUrl);
-events.on("api.change", updateUrl);
+events.on("iter.change", this.url.update);
+events.on("user.control", this.url.update);
+events.on("api.change", this.url.update);
 
 };
 ;/*
@@ -1510,8 +1779,6 @@ fromstops: function(resolution, stops) {
 FractalJS.create = function(params) {
 "use strict";
 
-//-------- private members
-
 var renderer, controller;
 var util = FractalJS.util;
 this.params = params;
@@ -1525,6 +1792,8 @@ if (!params.canvas || !params.canvas.width)
 if (!params.fractalDesc)
 	throw "Fractal Description is not set";
 
+var model = new FractalJS.Model(params.canvas);
+
 // define default values
 params.renderer = util.defaultProps(params.renderer, {
 	numberOfTiles: 1,
@@ -1537,22 +1806,23 @@ params.controller = util.defaultProps(params.controller, {
 });
 
 // instanciate controller, read and set URL
-controller = new FractalJS.Controller(this);
-var urlParams = controller.readUrl();
+controller = new FractalJS.Controller(this, model);
+var urlParams = controller.url.read();
 if (urlParams) {
 	params.fractalDesc = urlParams[0];
 	params.colorDesc = urlParams[1];
 }
 
+model.setFractalDesc(params.fractalDesc);
+
 // define default palette if not set
 if (!params.colorDesc) {
-	params.colorDesc = {typeid:0, resolution:1000, buffer:FractalJS.Colormapbuilder().fromId(1000, 0)};
+	params.colorDesc = {typeId:0, resolution:1000, buffer:FractalJS.Colormapbuilder().fromId(1000, 0)};
 }
 
 // instanciate renderer and set startup params
-renderer = new FractalJS.Renderer(this);
+renderer = new FractalJS.Renderer(this, model);
 renderer.setColorDesc(params.colorDesc);
-renderer.setFractalDesc(params.fractalDesc);
 
 // draw if required
 if (params.renderer.drawAfterInit)
@@ -1560,14 +1830,23 @@ if (params.renderer.drawAfterInit)
 
 //-------- public API
 
-this.setFractalDesc = function (desc, nofire) {
-	renderer.setFractalDesc(desc);
-	if (!nofire)
-		this.events.send("api.change");
+this.setFractalDesc = function (desc) {
+	if ("x" in desc)
+		model.camera.setXYW(desc.x, desc.y, desc.w);
+	if ("iter" in desc)
+		model.iter = desc.iter;
+	if ("typeId" in desc)
+		model.typeId = desc.typeId;
+	if ("smooth" in desc)
+		model.smooth = desc.smooth;
 };
 
-this.getFractalDesc= function () {
-	return renderer.getFractalDesc();
+this.resetViewport = function (desc) {
+	model.camera.resetViewport();
+};
+
+this.getModel = function () {
+	return model;
 };
 
 this.draw= function(reason,vector) {
@@ -1575,6 +1854,7 @@ this.draw= function(reason,vector) {
 };
 
 this.resize= function() {
+	model.resize();
 	renderer.resize();
 };
 
