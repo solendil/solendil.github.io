@@ -209,6 +209,28 @@ base64ToArrayBuffer: function (base64) {
     return bytes.buffer;
 },
 
+// https://jmperezperez.com/ondemand-javascript-lazy-loading-stubs/
+loadJs: function(url, cb) {
+  var script = document.createElement('script');
+  script.setAttribute('src', url);
+  script.setAttribute('type', 'text/javascript');
+
+  var loaded = false;
+  var loadFunction = function () {
+    if (loaded) return;
+    loaded = true;
+    if (cb) cb();
+  };
+  script.onload = loadFunction;
+  script.onreadystatechange = loadFunction;
+  document.getElementsByTagName("head")[0].appendChild(script);
+},
+
+// http://stackoverflow.com/questions/4817029/whats-the-best-way-to-detect-a-touch-screen-device-using-javascript
+is_touch_device: function() {
+  return 'ontouchstart' in window ||        // works on most browsers
+       navigator.maxTouchPoints;       // works on IE10/11 and Surface
+},
 
 Matrix: function(a,b,c,d,e,f) {
 	var Matrix = FractalJS.util.Matrix;
@@ -585,7 +607,7 @@ FractalJS.Url = function(model, fractal){
 			args.push(["i",model.iter]);
 			args.push(["fs",model.smooth?1:0]);
 			args.push(["ct",color.typeId]);
-			args.push(["co",color.offset*100]);
+			args.push(["co",Math.round(color.offset*100)]);
 			args.push(["cd",+color.density.toFixed(2)]);
 			if (!model.camera.viewportMatrix.isIdentity()) {
 				args.push(["va",model.camera.viewportMatrix.a.toFixed(4)]);
@@ -695,6 +717,7 @@ var engine = (function() {
 //-------- private members
 
 var escape = 4;	// square of escape distance
+var iter, pixelOnP;
 var fractalFunction;	// the fractal function used
 
 //-------- private methds
@@ -1009,8 +1032,6 @@ drawSubTileOnBuffer: function(tile, model) {
 },
 
 setModel: function(model) {
-	pxmin = model.pxmin;
-	pymin = model.pymin;
 	pixelOnP = model.pixelOnP;
 	iter = model.iter;
 	if (model.smooth)
@@ -1466,11 +1487,16 @@ FractalJS.Controller = function(fractal, model) {
 
 //-------- private members
 
-var ZOOM = 1.3;
-var SCALE = 1.1;
+var ZOOM  = 0.3; // 1+
+var SCALE = 0.1; // 1+
 var SHEAR = 0.1;
 var ANGLE = Math.PI/18;
-var PAN = 0.095;
+var PAN   = 0.095;
+
+var isDragging;			// is the user dragging ?
+var dragX, dragY;		// start dragging point
+var ldragX, ldragY;		// last dragging point
+var camStart;			// start camera
 
 //-------- shortcuts
 
@@ -1478,6 +1504,7 @@ var canvas = fractal.params.canvas;
 var params = fractal.params.controller;
 var events = fractal.events;
 var camera = model.camera;
+var util = FractalJS.util;
 
 //-------- public members
 
@@ -1515,7 +1542,7 @@ var zoom = function(psx, psy, delta) {
 	// test if we're at the maximum possible resolution (1.11e-15/pixel)
 	var extent = Math.min(camera.width, camera.height);
 	var limit = extent*1.11e-15;
-	if (camera.w<=limit && delta < 0) {
+	if (camera.w<=limit && delta < 1) {
 		events.send("zoom.limit.reached");
 		return;
 	}
@@ -1523,17 +1550,95 @@ var zoom = function(psx, psy, delta) {
 	var pc00 = camera.S2C(0,0);
 	var pc = camera.S2C(psx,psy);				// complex point under mouse
 	var vc = {x:camera.x-pc.x, y:camera.y-pc.y};   // vector to complex point at center
-	var zoom = delta<0?1/ZOOM:ZOOM;    // zoom multiplicator according to movement
-	camera.setXYW(pc.x+vc.x*zoom, pc.y+vc.y*zoom, camera.w*zoom); // adjust camera using scaled vector
+	camera.setXYW(pc.x+vc.x*delta, pc.y+vc.y*delta, camera.w*delta); // adjust camera using scaled vector
 	var ps00A = camera.C2S(pc00.x,pc00.y);
 
-	var vector = {x:ps00A.x*zoom, y:ps00A.y*zoom, z:1/zoom, mvt:delta<0?"zoomin":"zoomout", sx:psx,sy:psy};
+	var vector = {x:ps00A.x*delta, y:ps00A.y*delta, z:1/delta, mvt:delta<1?"zoomin":"zoomout", sx:psx,sy:psy};
 	fractal.draw("user.control",vector);
 	events.send("user.control");
 };
 
-var keymap = []; // Or you could call it "key"
+if (params.touchControl && util.is_touch_device()) {
+	// lazy loading of hammer.js library only if required
+	console.log("loading touch events library and code");
+	util.loadJs("libs/hammerjs/hammer.min.js", function() {
+		var hammertime = new Hammer(canvas, {});
+		hammertime.get('pan').set({ direction: Hammer.DIRECTION_ALL, threshold:1 });
+		hammertime.get('pinch').set({ enable: true });
 
+		hammertime.on('panstart', function(ev) {
+			isDragging = true;
+			dragX = ldragX = ev.center.x;
+			dragY = ldragY = ev.center.y;
+			camStart = model.camera.clone();
+		});
+
+		hammertime.on('panend', function(ev) {
+			isDragging = false;
+		});
+
+		hammertime.on('panmove', function(ev) {
+			console.log('panmove');
+			if (isDragging) {
+				var vsx = ev.center.x - dragX; // since beginning
+				var vsy = ev.center.y - dragY;
+				var pc1 = camStart.S2C(0,0), pc2 = camStart.S2C(vsx,vsy); // [pc1,pc2] is the movement vector on C
+				camera.setXYW(camStart.x - (pc2.x - pc1.x), camStart.y - (pc2.y - pc1.y));
+				var vsxr = ev.center.x - ldragX; // relative to last frame
+				var vsyr = ev.center.y - ldragY;
+				fractal.draw("user.control",{x:vsxr,y:vsyr,mvt:"pan"});
+				events.send("user.control");
+				ldragX = ev.center.x;
+				ldragY = ev.center.y;
+			}
+		});
+
+		var isPinching = false;
+		var pinchX, pinchY;		// start dragging point
+		var lastScale;
+
+		hammertime.on('pinchstart', function(ev) {
+			console.log("pinchstart");
+			isPinching = true;
+			pinchX =  ev.center.x;
+			pinchY =  ev.center.y;
+			lastScale = 1;
+			camStart = model.camera.clone();
+		});
+
+		hammertime.on('pinchend', function(ev) {
+			console.log("pinchend");
+			isPinching = false;
+		});
+
+		hammertime.on('pinch', function(ev) {
+			if (isPinching) {
+				var delta = lastScale/ev.scale;
+				var pc00 = camera.S2C(0,0);
+
+				// compute matrix that transforms an original triangle to the transformed triangle
+				var pc1 = camStart.S2C(pinchX, pinchY);
+				var pc2 = camStart.S2C(ev.center.x, ev.center.y);
+				var m = util.Matrix.GetTriangleToTriangle(
+					pc1.x, pc1.y, pc1.x+1,        pc1.y, pc1.x, pc1.y+1,
+					pc2.x, pc2.y, pc2.x+ev.scale, pc2.y, pc2.x, pc2.y+ev.scale);
+
+				// apply inverse of this matrix to starting point
+				var pc0A = m.inverse().applyTo(camStart.x, camStart.y);
+				camera.setXYW(pc0A.x, pc0A.y, camStart.w/m.a);
+
+				var ps00A = camera.C2S(pc00.x,pc00.y);
+				var vector = {x:ps00A.x*delta, y:ps00A.y*delta, z:1/delta, mvt:delta<1?"zoomin":"zoomout", sx:ev.center.x,sy:ev.center.y};
+				fractal.draw("user.control", vector);
+				events.send("user.control");
+
+				lastScale = ev.scale;
+			}
+		});
+	});
+}
+
+var keymap = [];
 if (params.keyboardControl) {
 	document.onkeyup = function(e) {
 	    e = e || window.event;
@@ -1543,9 +1648,11 @@ if (params.keyboardControl) {
 	    e = e || window.event;
 	    keymap[e.keyCode] = true;
 	    var keyCode = (typeof e.which == "number") ? e.which : e.keyCode;
+	    var modifier = 1;
+	    if (e.getModifierState("Shift")) modifier = 1/10;
 		switch (keyCode) {
-			case 107: zoom(canvas.width/2, canvas.height/2, -1); break; // key +, zoom in
-			case 109: zoom(canvas.width/2, canvas.height/2, 1); break;  // key -, zoom out
+			case 107: zoom(canvas.width/2, canvas.height/2, 1/(1+ZOOM*modifier)); break; // key +, zoom in
+			case 109: zoom(canvas.width/2, canvas.height/2, 1+ZOOM*modifier); break;  // key -, zoom out
 			case 86 : // key V, reset viewport
 				camera.resetViewport();
 				fractal.draw("init");
@@ -1553,50 +1660,45 @@ if (params.keyboardControl) {
 				break;
 			case 37: // left arrow
 				if (keymap[82]===true) // R
-					transformViewport("rotate", -ANGLE);
+					transformViewport("rotate", -ANGLE*modifier);
 				else if (keymap[83]===true) // S
-					transformViewport("scaleX", SCALE);
+					transformViewport("scaleX", 1+SCALE*modifier);
 				else if (keymap[72]===true) // H
-					transformViewport("shearX", SHEAR);
+					transformViewport("shearX", SHEAR*modifier);
 				else
-					pan(PAN, 0);
+					pan(PAN*modifier, 0);
 				break;
 			case 39: // right arrow
 				if (keymap[82]===true) // R
-					transformViewport("rotate", ANGLE);
+					transformViewport("rotate", ANGLE*modifier);
 				else if (keymap[83]===true) // S
-					transformViewport("scaleX", 1/SCALE);
+					transformViewport("scaleX", 1/(1+SCALE*modifier));
 				else if (keymap[72]===true) // H
-					transformViewport("shearX", -SHEAR);
+					transformViewport("shearX", -SHEAR*modifier);
 				else
-					pan(-PAN, 0);
+					pan(-PAN*modifier, 0);
 				break;
 			case 38: // up arrow
 				if (keymap[83]===true) // S
-					transformViewport("scaleY", 1/SCALE);
+					transformViewport("scaleY", 1/(1+SCALE*modifier));
 				else if (keymap[72]===true) // H
-					transformViewport("shearY", -SHEAR);
+					transformViewport("shearY", -SHEAR*modifier);
 				else
-					pan(0, -PAN);
+					pan(0, -PAN*modifier);
 				break;
 			case 40: // down arrow
 				if (keymap[83]===true) // S
-					transformViewport("scaleY", SCALE);
+					transformViewport("scaleY", 1+SCALE*modifier);
 				else if (keymap[72]===true) // H
-					transformViewport("shearY", SHEAR);
+					transformViewport("shearY", SHEAR*modifier);
 				else
-					pan(0, PAN);
+					pan(0, PAN*modifier);
 				break;
 		}
 	};
 }
 
 if (params.mouseControl) {
-
-	var isDragging;			// is the user dragging ?
-	var dragX, dragY;		// start dragging point
-	var ldragX, ldragY;		// last dragging point
-	var camStart;			// start camera
 
 	canvas.onmousedown = function(e) {
 		if (!e) e = window.event;
@@ -1631,11 +1733,13 @@ if (params.mouseControl) {
 		}
 	});
 
+
 	var wheelFunction = function(e) {
 		if (!e) e = window.event;
 		e.preventDefault();
-	  var delta = e.deltaY || e.wheelDelta; // IE11 special
-		zoom(e.clientX, e.clientY, delta);
+		var modifier = e.shiftKey?1/10:1;
+		var delta = e.deltaY || e.wheelDelta; // IE11 special
+		zoom(e.clientX, e.clientY, delta>0?1+ZOOM*modifier:1/(1+ZOOM*modifier));
 	};
 
 	// IE11 special
@@ -1810,6 +1914,7 @@ params.renderer = util.defaultProps(params.renderer, {
 params.controller = util.defaultProps(params.controller, {
 	mouseControl: true,
 	keyboardControl: true,
+	touchControl: true,
 	fitToWindow: false
 });
 
