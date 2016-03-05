@@ -478,7 +478,10 @@ FractalJS.Camera = function(){
       throw "what? " + type;
     this.viewportMatrix = this.viewportMatrix.multiply(m);
     this.project();
-    return util.Matrix.GetScaleMatrix(0,-1).multiply(m.inverse());
+    if (type=="scaleX" || type=="scaleY")
+      return m.inverse();
+    else
+      return m;
   };
 
   this.resetViewport = function(type, value) {
@@ -1241,9 +1244,10 @@ this.draw = function(reason, vector, priovector, quality) {
 			context.translate(model.camera.width/2,model.camera.height/2);
 			context.transform(vector.matrix.a, vector.matrix.b, vector.matrix.c, vector.matrix.d, vector.matrix.e, vector.matrix.f);
 			context.translate(-model.camera.width/2,-model.camera.height/2);
+		} else {
+			context.scale(vector.z, vector.z);
+			context.translate(vector.x, vector.y);
 		}
-		context.scale(vector.z, vector.z);
-		context.translate(vector.x, vector.y);
 		context.drawImage(vectorCanvas,0,0);
 		context.setTransform(1, 0, 0, 1, 0, 0);
 	}
@@ -1542,7 +1546,11 @@ if (params.keyboardControl) {
 		switch (keyCode) {
 			case 107: zoom(canvas.width/2, canvas.height/2, -1); break; // key +, zoom in
 			case 109: zoom(canvas.width/2, canvas.height/2, 1); break;  // key -, zoom out
-			case 86 : camera.resetViewport(); break;  // key V, reset viewport
+			case 86 : // key V, reset viewport
+				camera.resetViewport();
+				fractal.draw("init");
+				events.send("user.control");
+				break;
 			case 37: // left arrow
 				if (keymap[82]===true) // R
 					transformViewport("rotate", -ANGLE);
