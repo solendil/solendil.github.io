@@ -551,14 +551,21 @@ FractalJS.Camera = function(){
  * The Model of the fractal engine, ie the central place where data is
  * stored and shared between components.
  */
-FractalJS.Model = function(canvas){
+FractalJS.Model = function(params){
 "use strict";
 
-	this.canvas = canvas;
+	this.canvas = params.canvas;
+	this.canvas2 = params.canvas2;
 	this.camera = new FractalJS.Camera();
-	this.camera.setSize(canvas.width, canvas.height);
+	this.camera.setSize(this.canvas.width, this.canvas.height);
 
-	this.resize = function() {
+	this.resizeCanvas = function(width, height) {
+		this.canvas.width = width;
+		this.canvas.height = height;
+		if (this.canvas2) {
+			this.canvas2.width = width;
+			this.canvas2.height = height;
+		}
 		this.camera.setSize(this.canvas.width, this.canvas.height);
 	};
 
@@ -724,6 +731,7 @@ var fractalFunction;	// the fractal function used
 
 var iLog2 = 1.0 / Math.log(2.0);
 var iLog3 = 1.0 / Math.log(3.0);
+var iLog4 = 1.0 / Math.log(4.0);
 
 // core fractal functions
 var fractalFunctionListSmooth = {
@@ -769,7 +777,26 @@ var fractalFunctionListSmooth = {
 			sqx = zx*zx;
 			sqy = zy*zy;
 		}
-		var res = 5 + i - Math.log(Math.log(sqx+sqy)) * iLog3;
+		var res = 5 + i - Math.log(Math.log(sqx+sqy)) * iLog4;
+		return res;
+	},
+	// multibrot4
+	6 : function(cx,cy) {
+		var zx=0, zy=0, sqx=0, sqy=0, i=0, znx, zny;
+		while (true) {
+			znx = sqx*sqx-6*sqx*sqy+sqy*sqy+cx;
+			zny =4*sqx*zx*zy-4*zx*sqy*zy+cy;
+			zx = znx;
+			zy = zny;
+			if (++i>=iter)
+				break;
+			sqx = zx*zx;
+			sqy = zy*zy;
+			if (sqx+sqy>escape)
+				break;
+		}
+		if (i==iter) return i;
+		var res = 5 + i - Math.log(Math.log(sqx+sqy)) * iLog4;
 		return res;
 	},
 	// burningship
@@ -895,6 +922,23 @@ var fractalFunctionList = {
 		while (true) {
 			znx = sqx*zx-3*zx*sqy+cx;
 			zny = 3*sqx*zy-sqy*zy+cy;
+			zx = znx;
+			zy = zny;
+			if (++i>=iter)
+				break;
+			sqx = zx*zx;
+			sqy = zy*zy;
+			if (sqx+sqy>escape)
+				break;
+		}
+		return i;
+	},
+	// multibrot4
+	6 : function(cx,cy) {
+		var zx=0, zy=0, sqx=0, sqy=0, i=0, znx, zny;
+		while (true) {
+			znx = sqx*sqx-6*sqx*sqy+sqy*sqy+cx;
+			zny =4*sqx*zx*zy-4*zx*sqy*zy+cy;
 			zx = znx;
 			zy = zny;
 			if (++i>=iter)
@@ -1440,11 +1484,17 @@ this.workerMessage = function(param) {
 		// paint on canvas
     var tileIndex = 0;
     var bufferIndex = 0;
+   	var cmap = colormap.getDesc();
+	var buffer=cmap.buffer, offset=cmap.offset*buffer.length,
+		density=cmap.density, resolution=buffer.length, color;
     for (var ty=0; ty<tile.height; ty++) {
       bufferIndex = (ty+tile.y1)*canvas.width+tile.x1;
       for (var tx=0; tx<tile.width; tx++) {
         var iter = tile.frame[tileIndex++];
-        var color = colormap.getColorForIter(iter);
+        if (iter===0)
+			color = 0xFF000000;
+		else
+			color = buffer[~~((iter*density+offset)%resolution)];
         idata32[bufferIndex++] = color;
       }
     }
@@ -1751,13 +1801,9 @@ if (params.mouseControl) {
 }
 
 if (params.fitToWindow) {
-	canvas.width = window.innerWidth;
-	canvas.height = window.innerHeight;
-	model.resize();
+	model.resizeCanvas(window.innerWidth, window.innerHeight);
 	window.onresize = function() {
-		canvas.width = window.innerWidth;
-		canvas.height = window.innerHeight;
-		fractal.resize();
+		fractal.resize(window.innerWidth, window.innerHeight);
 		fractal.draw("init");
 	};
 }
@@ -1904,7 +1950,7 @@ if (!params.canvas || !params.canvas.width)
 if (!params.fractalDesc)
 	throw "Fractal Description is not set";
 
-var model = new FractalJS.Model(params.canvas);
+var model = new FractalJS.Model(params);
 
 // define default values
 params.renderer = util.defaultProps(params.renderer, {
@@ -1966,8 +2012,8 @@ this.draw= function(reason,vector) {
 	renderer.draw(reason,vector);
 };
 
-this.resize= function() {
-	model.resize();
+this.resize= function(width, height) {
+	model.resizeCanvas(width, height);
 	renderer.resize();
 };
 
