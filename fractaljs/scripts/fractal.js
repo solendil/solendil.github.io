@@ -359,10 +359,16 @@ FractalJS.util.Matrix.Identity = function(scale) {
 /*
 List of events :
 
-frame.end
-	Sent by the renderer when a frame is finished drawing. This event is generated for every quality.
+**** frame.end
 
+Sent by the renderer when a frame is finished drawing. This event is generated for every quality.
 
+**** mouse.move:
+
+Sent by the controller when the mouse is moved over/in/out the canvas.
+Object is: {sx, sy, cx, cy, iter}
+{sx, sy} being mouse coordinate on screen (canvas), and {cx, cy} being mouse coordinate
+on complex plane, or empty object if mouse is out of canvas.
 
 */
 
@@ -435,6 +441,7 @@ FractalJS.Camera = function(){
   var util = FractalJS.util;
 
   var matrix = null;
+  var matrix_inv = null;
   var cam = this; //javascript and "this"... sigh...
 
   this.width = 100;
@@ -476,6 +483,7 @@ FractalJS.Camera = function(){
     var S2Q = getScreenToSquareMatrix(this.width,this.height);
     var Q2C = getSquareToComplexMatrix(this.x,this.y,this.w);
     matrix = Q2C.multiply(S2Q);
+    matrix_inv = matrix.inverse();
   };
 
   this.setSize = function(width, height) {
@@ -518,12 +526,14 @@ FractalJS.Camera = function(){
     this.project();
   };
 
+  // screen to complex
   this.S2C = function(x,y) {
     return matrix.applyTo(x,y);
   };
 
+  // complex to screen
   this.C2S = function(x,y) {
-    return matrix.inverse().applyTo(x,y);
+    return matrix_inv.applyTo(x,y);
   };
 
   // returns a serialisable object
@@ -1027,6 +1037,26 @@ drawTileOnBuffer: function(tile, model) {
 	}
 },
 
+drawTileOnBufferSetOnly: function(tile, model) {
+	var frame = tile.frame;
+	var dx = 0;
+	for (var sy=tile.y1; sy<=tile.y2; sy++) {
+		for (var sx=tile.x1; sx<=tile.x2; sx++) {
+			if (frame[dx]!==0) {
+				dx++;
+			 	continue;
+			}
+			var px = sx * model.a + sy * model.c + model.e;
+			var py = sx * model.b + sy * model.d + model.f;
+			var piter = fractalFunction(px, py);
+			if (piter==iter)
+				frame[dx++] = 0;
+			else
+				frame[dx++] = piter;
+		}
+	}
+},
+
 // subsampling with a regular 4*4 grid
 drawSuperTileOnBuffer: function(tile, model) {
 	var sss = model.pixelOnP/4;
@@ -1034,6 +1064,13 @@ drawSuperTileOnBuffer: function(tile, model) {
 	var dx = 0;
 	for (var sy=tile.y1; sy<=tile.y2; sy++) {
 		for (var sx=tile.x1; sx<=tile.x2; sx++) {
+			if (frame[dx]===0) // if we're not on borders of tile, check if this point is inside set and skip SS
+				if (!(sy==tile.y1 || sy==tile.y2-1 || sx==tile.x1 || sx==tile.y1-1)) {
+					if (frame[dx]===0 && frame[dx+1]===0 && frame[dx-1]===0 && frame[dx+tile.width]===0 && frame[dx-tile.width]===0) {
+						dx++;
+						continue;
+					}
+				}
 			var px = sx * model.a + sy * model.c + model.e - model.pixelOnP/2;
 			var py = sx * model.b + sy * model.d + model.f - model.pixelOnP/2;
 			var itersum = 0;
@@ -1097,6 +1134,7 @@ onmessage = function(param) {
 		engine.setModel(data.model);
 		//console.log("receive DRAW", param)
 		if (data.quality==200) engine.drawTileOnBuffer(data.tile, data.model);
+		else if (data.quality==201) engine.drawTileOnBufferSetOnly(data.tile, data.model);
 		else if (data.quality==100) engine.drawSubTileOnBuffer(data.tile, data.model);
 		else if (data.quality==300) engine.drawSuperTileOnBuffer(data.tile, data.model);
 		else throw "invalid drawing quality";
@@ -1239,7 +1277,12 @@ this.resize = function() {
   var tileNbHeight = Math.sqrt(params.numberOfTiles/ratio);
   var tileNbWidth = Math.round(tileNbHeight*ratio);
   tileNbHeight = Math.round(tileNbHeight);
-  console.log("tiles: "+tileNbWidth+"*"+tileNbHeight+" = "+tileNbHeight*tileNbWidth+" ("+params.numberOfTiles+" asked), ratio "+ratio);
+  console.log("Canvas: "+canvas.width+"*"+canvas.height+
+  	" (ratio "+ratio.toFixed(3)+")"+
+  	", Tiles: "+tileNbWidth+"*"+tileNbHeight+" ("+tileNbHeight*tileNbWidth+" for "+params.numberOfTiles+" asked)"+
+  	" (~size "+Math.round(canvas.width/tileNbWidth)+"*"+Math.round(canvas.height/tileNbHeight)+")"
+  	);
+
   // instanciate new tiles
   var tileid = 0;
   tiles.length=0;
@@ -1261,6 +1304,16 @@ this.resize = function() {
       tiles.push(tile);
     }
   }
+};
+
+this.getIterAt= function(sx, sy) {
+	// TODO : find a more efficient way than enumerating all tiles...
+	for (var t in tiles) {
+		var tile = tiles[t];
+		if (sx>=tile.x1 && sx<=tile.x2 && sy>=tile.y1 && sy<=tile.y2) {
+			return tile.frame[(sy-tile.y1)*tile.width+(sx-tile.x1)];
+		}
+	}
 };
 
 this.setColorDesc = function(desc) {
@@ -1341,10 +1394,11 @@ this.draw = function(reason, vector, priovector, quality) {
 				tile.prio = 1;
 			}
 		}
-    // if this is an initialisation drawing, stars with a low quality 16x subsampling
-    if (reason=="init")
-      drawList.push({action:'draw', quality:100, frameId:frameId, tile:tile});
-    drawList.push({action:'draw', quality:quality, frameId:frameId, tile:tile});
+		// if this is an init, starts with a low quality 16x subsampling
+		if (reason=="init")
+			drawList.push({action:'draw', quality:100, frameId:frameId, tile:tile});
+
+		drawList.push({action:'draw', quality:quality, frameId:frameId, tile:tile});
 	}
 
   // prioritize tiles according to movement
@@ -1431,7 +1485,7 @@ var endOfFrame = function() {
 	//console.log(nbFringe10p, percInSet, percFringe10p)
 	if (percInSet > 1 && percFringe10p>1) {
 		model.iter = Math.round(model.iter*1.5);
-		that.draw();
+		that.draw(null, null, null, 200);
 		events.send("iter.change");
 	} else {
     setTimeout(function() {that.refine();},1000);
@@ -1749,7 +1803,6 @@ if (params.keyboardControl) {
 }
 
 if (params.mouseControl) {
-
 	canvas.onmousedown = function(e) {
 		if (!e) e = window.event;
 		if (e.button !== 0)
@@ -1761,6 +1814,17 @@ if (params.mouseControl) {
 			return;
 		camStart = model.camera.clone();
 	};
+
+	canvas.addEventListener("mousemove", function(e) {
+		if (!e) e = window.event;
+		var psx = e.clientX, psy = e.clientY;
+		var pc = camera.S2C(psx, psy);
+		events.send("mouse.move", {sx:psx, sy:psy, cx:pc.x, cy:pc.y, iter:fractal.getIterAt(psx, psy)});
+	});
+
+	canvas.addEventListener("mouseout", function(e) {
+		events.send("mouse.move", {});
+	});
 
 	window.addEventListener("mouseup", function(e) {
 		if (!e) e = window.event;
@@ -2029,6 +2093,10 @@ this.setColorDesc= function(cmap) {
 
 this.getColorDesc= function() {
 	return renderer.getColorDesc();
+};
+
+this.getIterAt= function(sx, sy) {
+	return renderer.getIterAt(sx, sy);
 };
 
 };
